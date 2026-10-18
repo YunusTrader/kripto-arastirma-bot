@@ -246,6 +246,15 @@ def api_lf_summary():
     return jsonify(rows_to_list(rows))
 
 
+@dashboard_bp.route("/api/init-progress")
+def api_init_progress():
+    import main as m
+    return jsonify({
+        "symbols_loaded": len(m.symbols_list),
+        "session_active": m.session is not None,
+    })
+
+
 @dashboard_bp.route("/api/status")
 def api_status():
     conn = db.get_conn()
