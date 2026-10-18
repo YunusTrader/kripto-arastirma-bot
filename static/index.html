@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kripto Araştırma Paneli</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #1c2333;
+  --border: #30363d;
+  --fg: #e6edf3;
+  --fg-dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --yellow: #d29922;
+  --red: #f85149;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);margin:0;padding:0 16px;font-variant-numeric:tabular-nums;font-size:14px}
+a{color:var(--accent);text-decoration:none}
+
+header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:12px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+header h1{font-size:18px;font-weight:700;margin:0;display:flex;align-items:center;gap:8px}
+header h1 .dot{width:8px;height:8px;background:var(--green);border-radius:50%;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header-meta{font-size:12px;color:var(--fg-dim);font-family:var(--font-mono)}
+.header-stats{display:flex;gap:16px;font-size:11px;color:var(--fg-dim);font-family:var(--font-mono)}
+.header-stats span{display:flex;align-items:center;gap:4px}
+
+.regime-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.regime-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px}
+.regime-card .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-dim);margin-bottom:4px}
+.regime-card .value{font-size:22px;font-weight:700;font-family:var(--font-mono)}
+.regime-card .sub{font-size:12px;color:var(--fg-dim);margin-top:2px}
+.up{color:var(--green)}.down{color:var(--red)}.neutral{color:var(--yellow)}
+
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin:20px 0 0;overflow-x:auto}
+.tab{padding:8px 16px;font-size:13px;font-weight:500;color:var(--fg-dim);cursor:pointer;border:none;border-bottom:2px solid transparent;white-space:nowrap;background:none;font-family:var(--font-body)}
+.tab:hover{color:var(--fg)}.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+.tab-content{display:none;padding:16px 0}.tab-content.active{display:block}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.grid-2{grid-template-columns:1fr}}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.card h3{font-size:13px;font-weight:600;margin:0 0 12px;color:var(--fg-dim);text-transform:uppercase;letter-spacing:.04em}
+
+table.dt{width:100%;border-collapse:collapse;font-size:13px}
+table.dt th{text-align:left;font-weight:500;color:var(--fg-dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--border)}
+table.dt td{padding:8px;border-bottom:1px solid var(--border)}
+table.dt tr:last-child td{border-bottom:none}
+.mono{font-family:var(--font-mono);font-size:12px;font-weight:600}
+
+.bar-wrap{width:100%;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;font-family:var(--font-mono)}
+.badge-green{background:rgba(63,185,80,.15);color:var(--green)}
+.badge-yellow{background:rgba(210,153,34,.15);color:var(--yellow)}
+.badge-red{background:rgba(248,81,73,.15);color:var(--red)}
+
+.coin-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+.coin-row:last-child{border-bottom:none}
+.coin-rank{font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);width:20px;text-align:right}
+.coin-symbol{font-family:var(--font-mono);font-weight:600;min-width:80px}
+.coin-method{color:var(--fg-dim);flex:1;min-width:0}
+.coin-score{font-family:var(--font-mono);font-weight:600;white-space:nowrap}
+
+.pump-card{display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--surface-2);border-radius:8px;margin-bottom:8px}
+.pump-icon{font-size:20px;flex-shrink:0;width:32px;text-align:center}
+.pump-info{flex:1;min-width:0}
+.pump-info h4{margin:0 0 4px;font-size:13px;font-weight:600}
+.pump-info p{margin:0;font-size:12px;color:var(--fg-dim)}
+.pump-pct{font-family:var(--font-mono);font-weight:700;font-size:14px;flex-shrink:0}
+
+.chart-wrap{position:relative;width:100%;max-height:280px}
+
+.heat-td{text-align:center;font-weight:600;font-family:var(--font-mono);font-size:12px}
+
+.loading{text-align:center;padding:40px;color:var(--fg-dim)}
+.loading::after{content:'';display:inline-block;width:16px;height:16px;border:2px solid var(--fg-dim);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-left:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);border-top:1px solid var(--border);margin-top:24px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#9670; Kripto Araştırma Paneli <span class="dot"></span></h1>
+  <div>
+    <div class="header-meta" id="update-time">Yükleniyor...</div>
+    <div class="header-stats" id="db-stats"></div>
+  </div>
+</header>
+
+<div class="regime-bar" id="regime-bar">
+  <div class="regime-card"><div class="label">BTC Fiyat</div><div class="value" id="r-price">—</div><div class="sub" id="r-trend">—</div></div>
+  <div class="regime-card"><div class="label">BTC Dominance</div><div class="value" id="r-dom">—</div><div class="sub" id="r-dom-trend">—</div></div>
+  <div class="regime-card"><div class="label">Korku / Açgözlülük</div><div class="value" id="r-fg">—</div><div class="sub" id="r-fg-label">—</div></div>
+  <div class="regime-card"><div class="label">Hacim Durumu</div><div class="value" id="r-vol">—</div><div class="sub" id="r-vol-status">—</div></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="methods">Yöntem Skorları</button>
+  <button class="tab" data-tab="coins">Öne Çıkan Coinler</button>
+  <button class="tab" data-tab="sectors">Sektör Analizi</button>
+  <button class="tab" data-tab="pumps">Pump Anatomisi</button>
+  <button class="tab" data-tab="mcap">Market Cap</button>
+</div>
+
+<div class="tab-content active" id="tab-methods">
+  <div class="grid-2">
+    <div class="card"><h3>Yöntem Performansları — Mevcut Rejim</h3><div id="methods-table" class="loading">Veriler yükleniyor</div></div>
+    <div class="card"><h3>Zaman Dilimine Göre Başarı</h3><div class="chart-wrap"><canvas id="chart-tf"></canvas></div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-coins">
+  <div class="card"><h3>Bu Rejimde En Yüksek Skorlu Coinler</h3><div id="coins-list" class="loading">Veriler yükleniyor</div></div>
+</div>
+
+<div class="tab-content" id="tab-sectors">
+  <div class="grid-2">
+    <div class="card"><h3>Sektör × Yöntem Isı Haritası (%)</h3><div id="sector-heatmap" class="loading">Veriler yükleniyor</div></div>
+    <div class="card"><h3>Sektör Karşılaştırma</h3><div class="chart-wrap"><canvas id="chart-radar"></canvas></div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-pumps">
+  <div class="grid-2">
+    <div class="card"><h3>Son Tespit Edilen Pump'lar</h3><div id="pumps-list" class="loading">Veriler yükleniyor</div></div>
+    <div class="card"><h3>Pump Öncesi Koşullar</h3><div class="chart-wrap"><canvas id="chart-pump"></canvas></div><div id="pump-total" style="margin-top:12px;font-size:12px;color:var(--fg-dim)"></div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-mcap">
+  <div class="grid-2">
+    <div class="card"><h3>Market Cap Grubuna Göre Başarı</h3><div class="chart-wrap"><canvas id="chart-mcap"></canvas></div></div>
+    <div class="card"><h3>Grup Özeti</h3><div id="mcap-summary" class="loading">Veriler yükleniyor</div></div>
+  </div>
+</div>
+
+<footer>Kripto Araştırma Botu — Yalnızca araştırma amaçlıdır, yatırım tavsiyesi değildir. Veriler Binance &amp; CoinGecko API'den alınmaktadır.</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const cs = getComputedStyle(document.documentElement);
+const C = {
+  accent: cs.getPropertyValue('--accent').trim(),
+  green: cs.getPropertyValue('--green').trim(),
+  yellow: cs.getPropertyValue('--yellow').trim(),
+  red: cs.getPropertyValue('--red').trim(),
+  fgDim: cs.getPropertyValue('--fg-dim').trim(),
+  border: cs.getPropertyValue('--border').trim(),
+};
+
+Chart.defaults.color = C.fgDim;
+Chart.defaults.borderColor = C.border;
+
+// Tabs
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  $$('.tab-content').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('#tab-' + t.dataset.tab).classList.add('active');
+}));
+
+function trendClass(t) { return t === 'yukselis' ? 'up' : t === 'dusus' ? 'down' : 'neutral'; }
+function trendIcon(t) { return t === 'yukselis' ? '📈' : t === 'dusus' ? '📉' : '➡️'; }
+function badgeClass(v) { return v >= 60 ? 'badge-green' : v >= 45 ? 'badge-yellow' : 'badge-red'; }
+function barColor(v) { return v >= 60 ? C.green : v >= 45 ? C.yellow : C.red; }
+
+async function api(path) {
+  try {
+    const r = await fetch(path);
+    return await r.json();
+  } catch { return null; }
+}
+
+async function loadStatus() {
+  const s = await api('/api/status');
+  if (!s) return;
+  $('#update-time').textContent = 'Son güncelleme: ' + s.timestamp;
+  $('#db-stats').innerHTML =
+    `<span>Coin: ${s.coins}</span><span>Mum: ${s.candles.toLocaleString()}</span><span>Sinyal: ${s.signals.toLocaleString()}</span><span>Pump: ${s.pumps}</span>`;
+}
+
+async function loadRegime() {
+  const r = await api('/api/regime');
+  if (!r) return;
+  $('#r-price').textContent = '$' + (r.btc_price || 0).toLocaleString('en', {maximumFractionDigits: 0});
+  $('#r-price').className = 'value ' + trendClass(r.btc_trend);
+  $('#r-trend').innerHTML = 'Trend: <span class="' + trendClass(r.btc_trend) + '">' + (r.btc_trend || '—') + '</span>';
+  $('#r-dom').textContent = '%' + (r.btc_dominance || 0).toFixed(1);
+  $('#r-dom-trend').innerHTML = trendIcon(r.dominance_trend) + ' ' + (r.dominance_trend || '—');
+  $('#r-fg').textContent = r.fear_greed_value || '—';
+  const fgc = (r.fear_greed_value || 50) >= 55 ? 'up' : (r.fear_greed_value || 50) <= 45 ? 'down' : 'neutral';
+  $('#r-fg').className = 'value ' + fgc;
+  $('#r-fg-label').textContent = r.fear_greed_label || '—';
+  $('#r-vol').textContent = r.volume_status || '—';
+  return r;
+}
+
+async function loadMethods(regime) {
+  const trend = regime?.btc_trend || 'yatay';
+  const scores = await api('/api/scores?dimension=btc_trend&dimension_value=' + trend);
+  if (!scores || !scores.length) {
+    $('#methods-table').innerHTML = '<p style="color:var(--fg-dim)">Henüz veri yok. Backtest tamamlanması bekleniyor.</p>';
+    return;
+  }
+  const seen = new Set();
+  const rows = [];
+  for (const s of scores) {
+    const key = s.method_name + '_' + s.timeframe;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(s);
+    if (rows.length >= 10) break;
+  }
+  let html = '<table class="dt"><thead><tr><th>Yöntem</th><th>TF</th><th>Başarı</th><th></th><th>Sinyal</th><th>Ort. Getiri</th></tr></thead><tbody>';
+  for (const s of rows) {
+    const wr = s.win_rate_7d || 0;
+    const ret = s.avg_return_7d || 0;
+    html += `<tr>
+      <td><span class="mono">${s.method_name}</span></td>
+      <td>${s.timeframe}</td>
+      <td><span class="badge ${badgeClass(wr)}">%${wr.toFixed(0)}</span></td>
+      <td><div class="bar-wrap"><div class="bar-fill" style="width:${wr}%;background:${barColor(wr)}"></div></div></td>
+      <td>${s.total_signals}</td>
+      <td class="${ret >= 0 ? 'up' : 'down'}">${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  $('#methods-table').innerHTML = html;
+}
+
+async function loadTfChart() {
+  const data = await api('/api/timeframe-scores');
+  if (!data) return;
+  const tfs = Object.keys(data);
+  const methods = ['rsi', 'ema_20_50', 'bb_squeeze', 'multi_signal'];
+  const colors = [C.accent + '99', C.green + '99', C.yellow + '99', C.red + '99'];
+  new Chart($('#chart-tf'), {
+    type: 'bar',
+    data: {
+      labels: tfs,
+      datasets: methods.map((m, i) => ({
+        label: m, data: tfs.map(tf => data[tf]?.[m] || 0), backgroundColor: colors[i]
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => '%' + v } } }
+    }
+  });
+}
+
+async function loadCoins() {
+  const coins = await api('/api/top-coins');
+  if (!coins || !coins.length) {
+    $('#coins-list').innerHTML = '<p style="color:var(--fg-dim)">Henüz veri yok.</p>';
+    return;
+  }
+  let html = '';
+  coins.forEach((c, i) => {
+    const wr = c.win_rate_7d || 0;
+    const cls = wr >= 60 ? 'up' : wr >= 45 ? 'neutral' : 'down';
+    html += `<div class="coin-row">
+      <span class="coin-rank">${i + 1}</span>
+      <span class="coin-symbol ${cls}">${c.symbol}</span>
+      <span class="coin-method">${c.method_name} (${c.timeframe}) · ${c.sector || '—'} · ${c.mcap_group || '—'}</span>
+      <span class="coin-score ${cls}">%${wr.toFixed(0)}</span>
+    </div>`;
+  });
+  $('#coins-list').innerHTML = html;
+}
+
+async function loadSectors() {
+  const data = await api('/api/sectors');
+  if (!data) return;
+  const methods = ['rsi', 'macd', 'ema_20_50', 'bb_squeeze', 'volume_spike', 'multi_signal'];
+  const sectors = Object.keys(data);
+
+  let html = '<div style="overflow-x:auto"><table class="dt" style="min-width:550px"><thead><tr><th></th>';
+  methods.forEach(m => html += `<th>${m.replace('_', ' ')}</th>`);
+  html += '</tr></thead><tbody>';
+  for (const s of sectors) {
+    html += `<tr><td style="font-weight:600">${s}</td>`;
+    for (const m of methods) {
+      const v = data[s]?.[m];
+      if (v == null) { html += '<td class="heat-td" style="color:var(--fg-dim)">—</td>'; continue; }
+      let bg, color;
+      if (v >= 65) { bg = 'rgba(63,185,80,.3)'; color = C.green; }
+      else if (v >= 55) { bg = 'rgba(63,185,80,.12)'; color = C.green; }
+      else if (v >= 45) { bg = 'rgba(210,153,34,.12)'; color = C.yellow; }
+      else { bg = 'rgba(248,81,73,.12)'; color = C.red; }
+      html += `<td class="heat-td" style="background:${bg};color:${color}">%${v}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div>';
+  $('#sector-heatmap').innerHTML = html;
+
+  // Radar
+  const radarData = {};
+  for (const m of ['bb_squeeze', 'multi_signal']) {
+    radarData[m] = sectors.map(s => data[s]?.[m] || 0);
+  }
+  new Chart($('#chart-radar'), {
+    type: 'radar',
+    data: {
+      labels: sectors,
+      datasets: [
+        { label: 'BB Squeeze', data: radarData['bb_squeeze'], borderColor: C.accent, backgroundColor: C.accent + '22', pointBackgroundColor: C.accent },
+        { label: 'Multi Signal', data: radarData['multi_signal'], borderColor: C.green, backgroundColor: C.green + '22', pointBackgroundColor: C.green },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { r: { beginAtZero: true, max: 100, ticks: { display: false }, grid: { color: C.border } } },
+      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } }
+    }
+  });
+}
+
+async function loadPumps() {
+  const [pumps, stats] = await Promise.all([api('/api/pumps'), api('/api/pump-stats')]);
+
+  if (!pumps || !pumps.length) {
+    $('#pumps-list').innerHTML = '<p style="color:var(--fg-dim)">Henüz pump tespit edilmedi.</p>';
+  } else {
+    let html = '';
+    for (const p of pumps.slice(0, 8)) {
+      const pct = (p.pump_pct || 0).toFixed(0);
+      const icon = pct >= 20 ? '🚀' : '📈';
+      const date = new Date(p.pump_time * 1000).toLocaleDateString('tr');
+      const pre = [];
+      if (p.pre_bb_squeeze) pre.push('BB sıkışma');
+      if (p.pre_accumulation) pre.push('Hacim birikimi');
+      if (p.pre_volume_ratio >= 2) pre.push('Hacim ' + p.pre_volume_ratio.toFixed(1) + 'x');
+      if (p.pre_rsi && p.pre_rsi < 35) pre.push('RSI ' + p.pre_rsi.toFixed(0));
+      html += `<div class="pump-card">
+        <div class="pump-icon">${icon}</div>
+        <div class="pump-info"><h4>${p.symbol}</h4><p>${date} — ${pre.join(', ') || 'Veri yok'}</p></div>
+        <div class="pump-pct up">+${pct}%</div>
+      </div>`;
+    }
+    $('#pumps-list').innerHTML = html;
+  }
+
+  if (stats && stats.total > 0) {
+    const conds = stats.conditions;
+    const labels = Object.keys(conds);
+    const values = Object.values(conds);
+    new Chart($('#chart-pump'), {
+      type: 'bar',
+      data: {
+        labels, datasets: [{
+          label: 'Görülme oranı (%)',
+          data: values,
+          backgroundColor: values.map(v => v >= 60 ? C.green + '99' : v >= 40 ? C.yellow + '99' : C.accent + '99'),
+          borderRadius: 4
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, max: 100, ticks: { callback: v => '%' + v } } }
+      }
+    });
+    $('#pump-total').textContent = `Toplam ${stats.total} pump analiz edildi.`;
+  }
+}
+
+async function loadMcap() {
+  const data = await api('/api/mcap-scores');
+  if (!data) return;
+  const groups = Object.keys(data);
+  const methods = ['ema_20_50', 'bb_squeeze', 'multi_signal', 'volume_spike'];
+  const colors = [C.accent + '99', C.green + '99', C.yellow + '99', C.red + '99'];
+
+  new Chart($('#chart-mcap'), {
+    type: 'bar',
+    data: {
+      labels: groups,
+      datasets: methods.map((m, i) => ({
+        label: m, data: groups.map(g => data[g]?.[m] || 0), backgroundColor: colors[i]
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => '%' + v } } }
+    }
+  });
+
+  // Summary
+  let html = '';
+  for (const g of groups) {
+    const vals = Object.values(data[g]).filter(v => v != null);
+    const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(0) : '—';
+    const best = Object.entries(data[g]).filter(([, v]) => v != null).sort((a, b) => b[1] - a[1])[0];
+    const cls = avg >= 60 ? 'up' : avg >= 45 ? 'neutral' : 'down';
+    html += `<div class="pump-card">
+      <div class="pump-icon" style="font-size:13px;font-weight:700;color:var(--accent)">${g}</div>
+      <div class="pump-info"><h4>${g}</h4><p>En iyi: ${best ? best[0] + ' (%' + best[1] + ')' : '—'}</p></div>
+      <div class="pump-pct ${cls}">%${avg} ort.</div>
+    </div>`;
+  }
+  $('#mcap-summary').innerHTML = html;
+}
+
+// Init
+(async () => {
+  const [, regime] = await Promise.all([loadStatus(), loadRegime()]);
+  loadMethods(regime);
+  loadTfChart();
+  loadCoins();
+  loadSectors();
+  loadPumps();
+  loadMcap();
+  // Auto refresh every 5 min
+  setInterval(async () => {
+    await loadStatus();
+    const r = await loadRegime();
+    loadMethods(r);
+    loadCoins();
+  }, 300000);
+})();
+</script>
+</body>
+</html>

@@ -3,7 +3,8 @@ import threading
 import logging
 import time
 import aiohttp
-from flask import Flask
+from flask import Flask, send_from_directory
+import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import FLASK_PORT, DATA_UPDATE_INTERVALS, DAILY_REPORT_HOUR, WEEKLY_REPORT_DAY
@@ -23,12 +24,16 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Flask keep-alive
-app = Flask("")
+# Flask keep-alive + dashboard
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+app = Flask("", static_folder=STATIC_DIR)
+
+from dashboard import dashboard_bp
+app.register_blueprint(dashboard_bp)
 
 @app.route("/")
 def home():
-    return "Kripto Arastirma Botu Aktif!"
+    return send_from_directory(STATIC_DIR, "index.html")
 
 def run_flask():
     app.run(host="0.0.0.0", port=FLASK_PORT, debug=False, use_reloader=False)
