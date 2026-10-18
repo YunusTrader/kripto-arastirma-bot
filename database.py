@@ -42,8 +42,8 @@ class DictConnection:
         self._conn = conn
 
     def execute(self, sql, params=None):
-        if params:
-            cur = self._conn.execute(sql, params)
+        if params is not None:
+            cur = self._conn.execute(sql, tuple(params))
         else:
             cur = self._conn.execute(sql)
         return DictCursor(cur)
