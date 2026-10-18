@@ -137,9 +137,9 @@ def run_backtest_for_symbol(symbol, coin_info):
                     "volume_profile": coin_info.get("volume_profile", "orta"),
                     "btc_correlation_group": coin_info.get("btc_correlation_group", "orta"),
                     "fear_greed_label": coin_info.get("fear_greed_label", "notr"),
-                    "is_success_1d": 1 if pct_1d and pct_1d > 0 else 0,
-                    "is_success_3d": 1 if pct_3d and pct_3d > 0 else 0,
-                    "is_success_7d": 1 if pct_7d and pct_7d > 0 else 0,
+                    "is_success_1d": (1 if pct_1d > 0 else 0) if pct_1d is not None else None,
+                    "is_success_3d": (1 if pct_3d > 0 else 0) if pct_3d is not None else None,
+                    "is_success_7d": (1 if pct_7d > 0 else 0) if pct_7d is not None else None,
                 }
                 results.append(signal)
 
@@ -229,6 +229,7 @@ def _calc_score(conn, method, timeframe, dimension, dim_value):
     row = conn.execute(
         f"SELECT COUNT(*) as total, "
         f"SUM(is_success_1d) as w1, SUM(is_success_3d) as w3, SUM(is_success_7d) as w7, "
+        f"COUNT(is_success_1d) as c1, COUNT(is_success_3d) as c3, COUNT(is_success_7d) as c7, "
         f"AVG(pct_change_1d) as avg1, AVG(pct_change_3d) as avg3, AVG(pct_change_7d) as avg7, "
         f"MIN(pct_change_7d) as maxdd "
         f"FROM method_signals WHERE {where}",
@@ -239,6 +240,10 @@ def _calc_score(conn, method, timeframe, dimension, dim_value):
     if total < SCORE_MIN_SAMPLES:
         return
 
+    c1 = row[4] or 1
+    c3 = row[5] or 1
+    c7 = row[6] or 1
+
     score = {
         "method_name": method,
         "timeframe": timeframe,
@@ -248,13 +253,13 @@ def _calc_score(conn, method, timeframe, dimension, dim_value):
         "win_count_1d": row[1] or 0,
         "win_count_3d": row[2] or 0,
         "win_count_7d": row[3] or 0,
-        "win_rate_1d": round((row[1] or 0) / total * 100, 1),
-        "win_rate_3d": round((row[2] or 0) / total * 100, 1),
-        "win_rate_7d": round((row[3] or 0) / total * 100, 1),
-        "avg_return_1d": round(row[4] or 0, 2),
-        "avg_return_3d": round(row[5] or 0, 2),
-        "avg_return_7d": round(row[6] or 0, 2),
-        "max_drawdown": round(row[7] or 0, 2),
+        "win_rate_1d": round((row[1] or 0) / c1 * 100, 1),
+        "win_rate_3d": round((row[2] or 0) / c3 * 100, 1),
+        "win_rate_7d": round((row[3] or 0) / c7 * 100, 1),
+        "avg_return_1d": round(row[7] or 0, 2),
+        "avg_return_3d": round(row[8] or 0, 2),
+        "avg_return_7d": round(row[9] or 0, 2),
+        "max_drawdown": round(row[10] or 0, 2),
         "last_updated": datetime.utcnow().isoformat(),
     }
     db.save_score(score)

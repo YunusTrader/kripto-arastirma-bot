@@ -22,11 +22,22 @@ async def safe_send(chat_id, text, parse_mode="Markdown"):
         if len(text) <= 4000:
             await bot.send_message(chat_id, text, parse_mode=parse_mode)
         else:
-            for i in range(0, len(text), 4000):
-                await bot.send_message(chat_id, text[i:i + 4000], parse_mode=parse_mode)
-                await asyncio.sleep(0.3)
+            parts = []
+            for line in text.split("\n"):
+                if parts and sum(len(p) for p in parts) + len(line) + len(parts) > 3900:
+                    await bot.send_message(chat_id, "\n".join(parts), parse_mode=parse_mode)
+                    parts = []
+                    await asyncio.sleep(0.3)
+                parts.append(line)
+            if parts:
+                await bot.send_message(chat_id, "\n".join(parts), parse_mode=parse_mode)
     except Exception as e:
-        log.warning(f"Send error: {e}")
+        log.warning(f"Send error (trying plain text): {e}")
+        try:
+            clean = text.replace("*", "").replace("`", "").replace("_", "")
+            await bot.send_message(chat_id, clean[:4000])
+        except Exception:
+            pass
 
 
 async def broadcast(text, parse_mode="Markdown"):
@@ -163,7 +174,7 @@ async def cmd_coin(m: types.Message):
         f"Sektor: `{coin.get('sector', '?')}`\n"
         f"Volatilite: `{coin.get('volatility_class', '?')}`\n"
         f"Hacim Profili: `{coin.get('volume_profile', '?')}`\n"
-        f"BTC Korelasyon: `{coin.get('btc_correlation', 0):.2f}` (`{coin.get('btc_correlation_group', '?')}`)\n"
+        f"BTC Korelasyon: `{(coin.get('btc_correlation') or 0):.2f}` (`{coin.get('btc_correlation_group') or '?'}`)\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
     )
 

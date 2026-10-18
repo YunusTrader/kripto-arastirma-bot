@@ -24,13 +24,16 @@ def detect_btc_trend(candles):
 
 
 def detect_dominance_trend(current_dom, candles_btc):
-    if len(candles_btc) < 7:
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT btc_dominance FROM market_regimes WHERE btc_dominance IS NOT NULL ORDER BY timestamp DESC LIMIT 7"
+    ).fetchall()
+    if not rows or len(rows) < 2:
         return "sabit"
-    old_close = candles_btc[-7]["close"]
-    new_close = candles_btc[-1]["close"]
-    if old_close == 0:
+    old_dom = rows[-1]["btc_dominance"]
+    if not old_dom or old_dom == 0:
         return "sabit"
-    pct = ((new_close - old_close) / old_close) * 100
+    pct = ((current_dom - old_dom) / old_dom) * 100
     if pct > 1:
         return "artiyor"
     elif pct < -1:
@@ -39,16 +42,19 @@ def detect_dominance_trend(current_dom, candles_btc):
 
 
 def detect_volume_status(total_volume, candles_btc):
-    if len(candles_btc) < 30:
-        return "normal"
-    avg_vol = sum(c["quote_volume"] for c in candles_btc[-30:]) / 30
-    if avg_vol == 0:
-        return "normal"
-    ratio = total_volume / avg_vol if avg_vol > 0 else 1
-    if ratio > 1.5:
-        return "yuksek"
-    elif ratio < 0.7:
-        return "dusuk"
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT total_volume FROM market_regimes WHERE total_volume IS NOT NULL AND total_volume > 0 ORDER BY timestamp DESC LIMIT 30"
+    ).fetchall()
+    if rows and len(rows) >= 5:
+        avg_vol = sum(r["total_volume"] for r in rows) / len(rows)
+        if avg_vol > 0:
+            ratio = total_volume / avg_vol
+            if ratio > 1.5:
+                return "yuksek"
+            elif ratio < 0.7:
+                return "dusuk"
+            return "normal"
     return "normal"
 
 

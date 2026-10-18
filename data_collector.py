@@ -15,20 +15,30 @@ CG_HEADERS = {"x-cg-demo-api-key": COINGECKO_KEY} if COINGECKO_KEY else None
 
 async def fetch_json(session, url, params=None, headers=None, retries=3):
     attempt = 0
+    rate_limit_count = 0
     while attempt < retries:
         try:
-            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                 if resp.status == 429:
-                    wait = int(resp.headers.get("Retry-After", 5))
+                    rate_limit_count += 1
+                    if rate_limit_count > 5:
+                        log.warning(f"Too many rate limits for {url}, giving up")
+                        return None
+                    try:
+                        wait = min(int(resp.headers.get("Retry-After", 5)), 60)
+                    except (ValueError, TypeError):
+                        wait = 5
                     log.warning(f"Rate limited, waiting {wait}s")
                     await asyncio.sleep(wait)
                     continue
                 if resp.status == 200:
                     return await resp.json()
+                if resp.status in (400, 404):
+                    return None
                 log.warning(f"HTTP {resp.status} for {url}")
         except Exception as e:
             log.warning(f"Fetch error ({attempt+1}/{retries}): {e}")
-            await asyncio.sleep(2 ** attempt)
+        await asyncio.sleep(2 ** attempt)
         attempt += 1
     return None
 
@@ -98,10 +108,11 @@ async def collect_coingecko_rankings(session):
     symbol_map = {}
     for i, coin in enumerate(all_coins, 1):
         sym = coin.get("symbol", "").upper()
-        symbol_map[sym] = {
-            "rank": i,
-            "market_cap": coin.get("market_cap", 0),
-        }
+        if sym not in symbol_map:
+            symbol_map[sym] = {
+                "rank": coin.get("market_cap_rank") or i,
+                "market_cap": coin.get("market_cap") or 0,
+            }
     return symbol_map
 
 
@@ -177,6 +188,10 @@ async def initial_data_load(session):
     log.info("Fetching CoinGecko rankings...")
     cg_rankings = await collect_coingecko_rankings(session)
     log.info(f"Got rankings for {len(cg_rankings)} coins")
+
+    if not cg_rankings:
+        log.warning("CoinGecko returned empty rankings, skipping classification")
+        cg_rankings = {}
 
     for s in symbols_info:
         base = s["base"]

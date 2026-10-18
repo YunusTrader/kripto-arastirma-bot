@@ -55,15 +55,21 @@ def calculate_btc_correlation(symbol_candles, btc_candles, period=30):
     if len(symbol_candles) < period or len(btc_candles) < period:
         return 0, "orta"
 
+    btc_by_time = {c["open_time"]: c for c in btc_candles}
     sym_returns = []
     btc_returns = []
-    sym_slice = symbol_candles[-period:]
-    btc_slice = btc_candles[-period:]
 
-    for i in range(1, min(len(sym_slice), len(btc_slice))):
-        if sym_slice[i - 1]["close"] > 0 and btc_slice[i - 1]["close"] > 0:
+    sym_slice = symbol_candles[-period:]
+    for i in range(1, len(sym_slice)):
+        prev_time = sym_slice[i - 1]["open_time"]
+        curr_time = sym_slice[i]["open_time"]
+        btc_prev = btc_by_time.get(prev_time)
+        btc_curr = btc_by_time.get(curr_time)
+        if not btc_prev or not btc_curr:
+            continue
+        if sym_slice[i - 1]["close"] > 0 and btc_prev["close"] > 0:
             sym_ret = (sym_slice[i]["close"] - sym_slice[i - 1]["close"]) / sym_slice[i - 1]["close"]
-            btc_ret = (btc_slice[i]["close"] - btc_slice[i - 1]["close"]) / btc_slice[i - 1]["close"]
+            btc_ret = (btc_curr["close"] - btc_prev["close"]) / btc_prev["close"]
             sym_returns.append(sym_ret)
             btc_returns.append(btc_ret)
 

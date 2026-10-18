@@ -25,11 +25,14 @@ def detect_whale_activity(symbol, timeframe="4h"):
 
     for i in range(WHALE_LOOKBACK, len(candles)):
         current = candles[i]
-        num_trades = current.get("num_trades", 0)
-        if not num_trades or num_trades == 0:
+        num_trades = current.get("num_trades") or 0
+        if num_trades == 0:
             continue
 
-        current_avg = current["quote_volume"] / num_trades
+        qv = current.get("quote_volume") or 0
+        if qv == 0:
+            continue
+        current_avg = qv / num_trades
 
         lookback = candles[i - WHALE_LOOKBACK:i]
         normal_avgs = []
@@ -64,6 +67,8 @@ def run_whale_scan(timeframe="4h"):
     log.info("Running whale activity scan...")
     coins = db.get_all_coins()
     conn = db.get_conn()
+    conn.execute("DELETE FROM whale_alerts")
+    conn.commit()
     total = 0
 
     for coin in coins:
@@ -102,12 +107,15 @@ def run_whale_scan(timeframe="4h"):
 # Fark >= 0.4 → korelasyon kırılması (coin bağımsız hareket ediyor)
 
 CORR_BREAK_THRESHOLD = 0.4
-CORR_SHORT_PERIOD = 2  # gün (48 saat)
+CORR_SHORT_PERIOD = 7  # gün
 CORR_LONG_PERIOD = 30  # gün
 
 
 def detect_correlation_breaks():
     log.info("Detecting correlation breaks...")
+    conn_del = db.get_conn()
+    conn_del.execute("DELETE FROM correlation_breaks")
+    conn_del.commit()
     coins = db.get_all_coins()
     btc_raw = db.get_candles("BTCUSDT", "1d", 60)
     if not btc_raw or len(btc_raw) < CORR_LONG_PERIOD:
@@ -221,6 +229,8 @@ def analyze_leader_follower(timeframe="4h"):
     follower_bars = int(FOLLOWER_WINDOW_HOURS * 60 / tf_minutes)
 
     conn = db.get_conn()
+    conn.execute("DELETE FROM sector_leaders")
+    conn.commit()
     total = 0
 
     for sector, members in SECTORS.items():
@@ -305,7 +315,11 @@ def analyze_leader_follower(timeframe="4h"):
 
 def run_all_advanced_analytics():
     log.info("Running all advanced analytics...")
-    run_whale_scan("4h")
-    detect_correlation_breaks()
-    analyze_leader_follower("4h")
+    for name, fn in [("whale_scan", lambda: run_whale_scan("4h")),
+                     ("correlation_breaks", detect_correlation_breaks),
+                     ("leader_follower", lambda: analyze_leader_follower("4h"))]:
+        try:
+            fn()
+        except Exception as e:
+            log.error(f"{name} failed: {e}")
     log.info("Advanced analytics complete")

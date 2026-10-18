@@ -69,13 +69,13 @@ async def scheduled_update_regime():
         await update_regime(session)
 
 async def scheduled_classify():
-    classify_all_coins()
+    await asyncio.get_event_loop().run_in_executor(None, classify_all_coins)
 
 async def scheduled_backtest():
-    run_full_backtest()
+    await asyncio.get_event_loop().run_in_executor(None, run_full_backtest)
 
 async def scheduled_advanced():
-    run_all_advanced_analytics()
+    await asyncio.get_event_loop().run_in_executor(None, run_all_advanced_analytics)
 
 async def scheduled_daily_report():
     text = build_daily_report()
@@ -93,9 +93,9 @@ async def scheduled_weekly_report():
             seen.add(key)
             text += (
                 f"`{s['method_name']:15s}` {s['timeframe']:3s} | "
-                f"7g: %{s['win_rate_7d']:.0f} | "
-                f"ort: %{s['avg_return_7d']:+.1f} | "
-                f"{s['total_signals']} sinyal\n"
+                f"7g: %{(s['win_rate_7d'] or 0):.0f} | "
+                f"ort: %{(s['avg_return_7d'] or 0):+.1f} | "
+                f"{s['total_signals'] or 0} sinyal\n"
             )
     await broadcast(text)
 
@@ -142,9 +142,11 @@ async def background_init(sess):
         syms = await get_all_usdt_symbols(sess)
         symbols_list = [s["symbol"] for s in syms]
 
+    loop = asyncio.get_event_loop()
+
     log.info("Classifying coins...")
     try:
-        classify_all_coins()
+        await loop.run_in_executor(None, classify_all_coins)
     except Exception as e:
         log.error(f"Classification error: {e}")
 
@@ -156,13 +158,13 @@ async def background_init(sess):
 
     log.info("Running initial backtest...")
     try:
-        run_full_backtest()
+        await loop.run_in_executor(None, run_full_backtest)
     except Exception as e:
         log.error(f"Backtest error: {e}")
 
     log.info("Running advanced analytics...")
     try:
-        run_all_advanced_analytics()
+        await loop.run_in_executor(None, run_all_advanced_analytics)
     except Exception as e:
         log.error(f"Advanced analytics error: {e}")
 
@@ -188,12 +190,13 @@ async def main():
         await broadcast("Bot basladi! Veri yukleniyor, bu 15-20 dk surebilir...\n\nYukleme bitince ayrica haber verecegim.")
         log.info("Telegram bot starting, data load will run in background...")
 
-        asyncio.create_task(background_init(sess))
+        init_task = asyncio.create_task(background_init(sess))
+        init_task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
         try:
             await dp.start_polling(bot)
-        except Exception:
-            pass
+        except Exception as e:
+            log.error(f"Polling error: {e}")
 
 
 if __name__ == "__main__":

@@ -31,14 +31,20 @@ def rsi(closes, period=14):
     avg_loss = sum(losses[:period]) / period
     rsi_vals = []
 
+    if avg_loss == 0:
+        rsi_vals.append(100)
+    else:
+        rs = avg_gain / avg_loss
+        rsi_vals.append(100 - (100 / (1 + rs)))
+
     for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
         if avg_loss == 0:
             rsi_vals.append(100)
         else:
             rs = avg_gain / avg_loss
             rsi_vals.append(100 - (100 / (1 + rs)))
-        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
-        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
 
     return rsi_vals
 
@@ -113,26 +119,22 @@ def detect_signals(candles):
     ema20 = ema(closes, 20)
     ema50 = ema(closes, 50)
     if len(ema20) >= 2 and len(ema50) >= 2:
-        offset = len(ema20) - len(ema50)
-        if offset >= 0 and len(ema50) >= 2:
-            prev_diff = ema20[-2 + offset] - ema50[-2] if (-2 + offset) >= 0 else 0
-            curr_diff = ema20[-1 + offset] - ema50[-1] if (-1 + offset) >= 0 else ema20[-1] - ema50[-1]
-            if curr_diff > 0 and prev_diff <= 0:
-                signals["ema_20_50"] = {"type": "golden_cross", "value": round(curr_diff, 6)}
-            elif curr_diff < 0 and prev_diff >= 0:
-                signals["ema_20_50"] = {"type": "death_cross", "value": round(curr_diff, 6)}
+        curr_diff = ema20[-1] - ema50[-1]
+        prev_diff = ema20[-2] - ema50[-2]
+        if curr_diff > 0 and prev_diff <= 0:
+            signals["ema_20_50"] = {"type": "golden_cross", "value": round(curr_diff, 6)}
+        elif curr_diff < 0 and prev_diff >= 0:
+            signals["ema_20_50"] = {"type": "death_cross", "value": round(curr_diff, 6)}
 
     # EMA 50/200
     ema200 = ema(closes, 200) if len(closes) >= 200 else []
     if len(ema50) >= 2 and len(ema200) >= 2:
-        offset = len(ema50) - len(ema200)
-        if offset >= 0:
-            prev_diff = ema50[-2 + offset] - ema200[-2] if (-2 + offset) >= 0 else 0
-            curr_diff = ema50[-1 + offset] - ema200[-1] if (-1 + offset) >= 0 else ema50[-1] - ema200[-1]
-            if curr_diff > 0 and prev_diff <= 0:
-                signals["ema_50_200"] = {"type": "golden_cross", "value": round(curr_diff, 6)}
-            elif curr_diff < 0 and prev_diff >= 0:
-                signals["ema_50_200"] = {"type": "death_cross", "value": round(curr_diff, 6)}
+        curr_diff = ema50[-1] - ema200[-1]
+        prev_diff = ema50[-2] - ema200[-2]
+        if curr_diff > 0 and prev_diff <= 0:
+            signals["ema_50_200"] = {"type": "golden_cross", "value": round(curr_diff, 6)}
+        elif curr_diff < 0 and prev_diff >= 0:
+            signals["ema_50_200"] = {"type": "death_cross", "value": round(curr_diff, 6)}
 
     # Bollinger squeeze
     bb_upper, bb_mid, bb_lower = bollinger_bands(closes)

@@ -1,8 +1,5 @@
 import os
-import json
 import logging
-import libsql_experimental as libsql
-from datetime import datetime
 from config import TURSO_DB_URL, TURSO_AUTH_TOKEN
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "crypto_research.db")
@@ -57,8 +54,9 @@ class DictConnection:
         if hasattr(self._conn, 'sync'):
             try:
                 self._conn.sync()
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Turso sync on commit failed: {e}")
 
     def sync(self):
         if hasattr(self._conn, 'sync'):
@@ -74,6 +72,7 @@ def get_conn():
         return _conn
 
     if TURSO_DB_URL and TURSO_AUTH_TOKEN:
+        import libsql_experimental as libsql
         raw = libsql.connect(
             DB_PATH,
             sync_url=TURSO_DB_URL,
@@ -400,6 +399,8 @@ def save_pump(pump_dict):
 
 
 def get_top_scored_coins(regime_dict, limit=10):
+    if not regime_dict:
+        return []
     conn = get_conn()
     rows = conn.execute("""
         SELECT ms.symbol, ms.method_name, ms.timeframe,
