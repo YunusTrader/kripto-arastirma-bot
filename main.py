@@ -115,6 +115,44 @@ def setup_scheduler():
     return scheduler
 
 
+async def background_init(sess):
+    global symbols_list, session
+    session = sess
+
+    log.info("Starting initial data load (this may take several minutes)...")
+    try:
+        symbols_list = await initial_data_load(sess)
+        log.info(f"Loaded {len(symbols_list)} symbols")
+    except Exception as e:
+        log.error(f"Initial load error: {e}")
+        syms = await get_all_usdt_symbols(sess)
+        symbols_list = [s["symbol"] for s in syms]
+
+    log.info("Classifying coins...")
+    try:
+        classify_all_coins()
+    except Exception as e:
+        log.error(f"Classification error: {e}")
+
+    log.info("Updating market regime...")
+    try:
+        await update_regime(sess)
+    except Exception as e:
+        log.error(f"Regime error: {e}")
+
+    log.info("Running initial backtest...")
+    try:
+        run_full_backtest()
+    except Exception as e:
+        log.error(f"Backtest error: {e}")
+
+    log.info("Starting scheduler...")
+    setup_scheduler()
+
+    await broadcast("Veri yukleme ve backtest tamamlandi!\n\n/rapor komutu ile baslayabilirsiniz.")
+    log.info("Background init complete")
+
+
 async def main():
     global symbols_list, session
 
@@ -124,43 +162,15 @@ async def main():
     async with aiohttp.ClientSession() as sess:
         session = sess
 
-        log.info("Starting initial data load (this may take several minutes)...")
-        try:
-            symbols_list = await initial_data_load(sess)
-            log.info(f"Loaded {len(symbols_list)} symbols")
-        except Exception as e:
-            log.error(f"Initial load error: {e}")
-            syms = await get_all_usdt_symbols(sess)
-            symbols_list = [s["symbol"] for s in syms]
+        await broadcast("Bot basladi! Veri yukleniyor, bu 15-20 dk surebilir...\n\nYukleme bitince ayrica haber verecegim.")
+        log.info("Telegram bot starting, data load will run in background...")
 
-        log.info("Classifying coins...")
-        try:
-            classify_all_coins()
-        except Exception as e:
-            log.error(f"Classification error: {e}")
-
-        log.info("Updating market regime...")
-        try:
-            await update_regime(sess)
-        except Exception as e:
-            log.error(f"Regime error: {e}")
-
-        log.info("Running initial backtest...")
-        try:
-            run_full_backtest()
-        except Exception as e:
-            log.error(f"Backtest error: {e}")
-
-        log.info("Starting scheduler...")
-        scheduler = setup_scheduler()
-
-        log.info("Starting Telegram bot...")
-        await broadcast("Kripto Arastirma Botu baslatildi! Veriler yuklendi, backtest tamamlandi.\n\n/rapor komutu ile baslayabilirsiniz.")
+        asyncio.create_task(background_init(sess))
 
         try:
             await dp.start_polling(bot)
-        finally:
-            scheduler.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
