@@ -397,7 +397,7 @@ async function loadPumps() {
       if (p.pre_bb_squeeze) pre.push('BB sıkışma');
       if (p.pre_accumulation) pre.push('Hacim birikimi');
       if (p.pre_volume_ratio >= 2) pre.push('Hacim ' + p.pre_volume_ratio.toFixed(1) + 'x');
-      if (p.pre_rsi && p.pre_rsi < 35) pre.push('RSI ' + p.pre_rsi.toFixed(0));
+      if (p.pre_rsi != null) pre.push('RSI ' + p.pre_rsi.toFixed(0));
       html += `<div class="pump-card">
         <div class="pump-icon">${icon}</div>
         <div class="pump-info"><h4>${p.symbol}</h4><p>${date} — ${pre.join(', ') || 'Veri yok'}</p></div>

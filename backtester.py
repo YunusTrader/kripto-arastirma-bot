@@ -147,6 +147,14 @@ def run_backtest_for_symbol(symbol, coin_info):
         pumps = find_pumps(candles, timeframe)
         for pump in pumps:
             pre = analyze_pump_preconditions(candles, pump["index"], timeframe)
+            # Pick the best available lookback (longest with data)
+            best_pre = {}
+            for key in ["24h", "12h", "4h", "1h"]:
+                if key in pre and pre[key].get("snapshot"):
+                    best_pre = pre[key]
+                    break
+            snap = best_pre.get("snapshot", {})
+            sigs = best_pre.get("signals", [])
             pump_record = {
                 "symbol": symbol,
                 "timeframe": timeframe,
@@ -158,12 +166,12 @@ def run_backtest_for_symbol(symbol, coin_info):
                 "dominance_trend": coin_info.get("dominance_trend", "sabit"),
                 "mcap_group": coin_info.get("mcap_group", "200+"),
                 "sector": coin_info.get("sector", "Diger"),
-                "pre_rsi": pre.get("4h", {}).get("snapshot", {}).get("rsi"),
-                "pre_macd_signal": pre.get("4h", {}).get("snapshot", {}).get("macd_signal"),
-                "pre_ema_cross": pre.get("4h", {}).get("snapshot", {}).get("ema_cross"),
-                "pre_bb_squeeze": 1 if pre.get("4h", {}).get("snapshot", {}).get("bb_squeeze") else 0,
-                "pre_volume_ratio": pre.get("4h", {}).get("snapshot", {}).get("volume_ratio"),
-                "pre_accumulation": 1 if "accumulation" in pre.get("4h", {}).get("signals", []) else 0,
+                "pre_rsi": snap.get("rsi"),
+                "pre_macd_signal": snap.get("macd_signal"),
+                "pre_ema_cross": snap.get("ema_cross"),
+                "pre_bb_squeeze": 1 if snap.get("bb_squeeze") else 0,
+                "pre_volume_ratio": snap.get("volume_ratio"),
+                "pre_accumulation": 1 if "accumulation" in sigs else 0,
                 "indicators_json": json.dumps(pre),
             }
             db.save_pump(pump_record)
