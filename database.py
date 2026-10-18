@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 import libsql_experimental as libsql
 from datetime import datetime
 from config import TURSO_DB_URL, TURSO_AUTH_TOKEN
@@ -70,7 +71,10 @@ def get_conn():
             sync_url=TURSO_DB_URL,
             auth_token=TURSO_AUTH_TOKEN
         )
-        raw.sync()
+        try:
+            raw.sync()
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Initial Turso sync failed (will retry later): {e}")
     else:
         import sqlite3
         raw = sqlite3.connect(DB_PATH)
@@ -83,7 +87,10 @@ def get_conn():
 
 def sync_db():
     if _conn:
-        _conn.sync()
+        try:
+            _conn.sync()
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Turso sync failed: {e}")
 
 
 def init_db():
