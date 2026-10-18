@@ -225,6 +225,9 @@ function trendIcon(t) { return t === 'yukselis' ? '📈' : t === 'dusus' ? '📉
 function badgeClass(v) { return v >= 60 ? 'badge-green' : v >= 45 ? 'badge-yellow' : 'badge-red'; }
 function barColor(v) { return v >= 60 ? C.green : v >= 45 ? C.yellow : C.red; }
 
+function tsToDate(ts) {
+  return new Date(ts > 1e12 ? ts : ts * 1000).toLocaleDateString('tr');
+}
 async function api(path) {
   try {
     const r = await fetch(path);
@@ -389,7 +392,7 @@ async function loadPumps() {
     for (const p of pumps.slice(0, 8)) {
       const pct = (p.pump_pct || 0).toFixed(0);
       const icon = pct >= 20 ? '🚀' : '📈';
-      const date = new Date(p.pump_time * 1000).toLocaleDateString('tr');
+      const date = tsToDate(p.pump_time);
       const pre = [];
       if (p.pre_bb_squeeze) pre.push('BB sıkışma');
       if (p.pre_accumulation) pre.push('Hacim birikimi');
@@ -474,7 +477,7 @@ async function loadWhales() {
   } else {
     let html = '';
     for (const a of alerts.slice(0, 10)) {
-      const date = new Date(a.detected_time * 1000).toLocaleDateString('tr');
+      const date = tsToDate(a.detected_time);
       const ret = a.pct_change_24h;
       const retCls = ret > 0 ? 'up' : ret < 0 ? 'down' : 'neutral';
       html += `<div class="pump-card">
@@ -513,7 +516,7 @@ async function loadCorrelation() {
   } else {
     let html = '';
     for (const b of breaks.slice(0, 10)) {
-      const date = new Date(b.detected_time * 1000).toLocaleDateString('tr');
+      const date = tsToDate(b.detected_time);
       const ret = b.pct_change_7d;
       const retCls = ret > 0 ? 'up' : ret < 0 ? 'down' : 'neutral';
       html += `<div class="pump-card">
