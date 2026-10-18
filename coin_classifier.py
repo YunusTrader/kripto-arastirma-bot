@@ -102,36 +102,39 @@ def classify_all_coins():
     btc_candles_raw = db.get_candles("BTCUSDT", "1d", 60)
     btc_candles = [dict(c) for c in reversed(btc_candles_raw)]
 
+    conn = db.get_conn()
     classified = 0
+    now = datetime.utcnow().isoformat()
     for coin in coins:
         symbol = coin["symbol"]
         if symbol == "BTCUSDT":
             continue
 
-        candles_raw = db.get_candles(symbol, "1d", 60)
-        if not candles_raw:
+        try:
+            candles_raw = db.get_candles(symbol, "1d", 60)
+            if not candles_raw:
+                continue
+            candles = [dict(c) for c in reversed(candles_raw)]
+
+            vol_class = classify_volatility(candles)
+            vol_profile = classify_volume_profile(candles)
+            corr, corr_group = calculate_btc_correlation(candles, btc_candles)
+
+            avg_vol = 0
+            volumes = [c["quote_volume"] for c in candles[-30:] if c["quote_volume"]]
+            if volumes:
+                avg_vol = sum(volumes) / len(volumes)
+
+            conn.execute(
+                "UPDATE coins SET volatility_class=?, volume_profile=?, btc_correlation=?, "
+                "btc_correlation_group=?, avg_daily_volume=?, last_classified=? WHERE symbol=?",
+                (vol_class, vol_profile, corr, corr_group, avg_vol, now, symbol)
+            )
+            classified += 1
+        except Exception as e:
+            log.error(f"Classify error for {symbol}: {e}")
             continue
-        candles = [dict(c) for c in reversed(candles_raw)]
 
-        vol_class = classify_volatility(candles)
-        vol_profile = classify_volume_profile(candles)
-        corr, corr_group = calculate_btc_correlation(candles, btc_candles)
-
-        avg_vol = 0
-        volumes = [c["quote_volume"] for c in candles[-30:] if c["quote_volume"]]
-        if volumes:
-            avg_vol = sum(volumes) / len(volumes)
-
-        db.save_coin(
-            symbol, coin["base_asset"],
-            volatility_class=vol_class,
-            volume_profile=vol_profile,
-            btc_correlation=corr,
-            btc_correlation_group=corr_group,
-            avg_daily_volume=avg_vol,
-            last_classified=datetime.utcnow().isoformat()
-        )
-        classified += 1
-
+    conn.commit()
     log.info(f"Classified {classified} coins")
     return classified
