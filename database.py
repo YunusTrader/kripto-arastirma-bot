@@ -9,9 +9,54 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "crypto_research.db")
 _conn = None
 
 
-def dict_factory(cursor, row):
-    fields = [column[0] for column in cursor.description]
-    return dict(zip(fields, row))
+class DictCursor:
+    """Wrapper that makes cursor results behave like dicts."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    def _to_dict(self, row):
+        if row is None:
+            return None
+        cols = [d[0] for d in self._cursor.description]
+        return dict(zip(cols, row))
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return self._to_dict(row)
+
+    def fetchall(self):
+        return [self._to_dict(r) for r in self._cursor.fetchall()]
+
+
+class DictConnection:
+    """Wrapper around a libsql/sqlite3 connection that returns dicts."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql, params=None):
+        if params:
+            cur = self._conn.execute(sql, params)
+        else:
+            cur = self._conn.execute(sql)
+        return DictCursor(cur)
+
+    def executemany(self, sql, params):
+        return self._conn.executemany(sql, params)
+
+    def commit(self):
+        self._conn.commit()
+
+    def sync(self):
+        if hasattr(self._conn, 'sync'):
+            self._conn.sync()
 
 
 def get_conn():
@@ -20,24 +65,24 @@ def get_conn():
         return _conn
 
     if TURSO_DB_URL and TURSO_AUTH_TOKEN:
-        _conn = libsql.connect(
+        raw = libsql.connect(
             DB_PATH,
             sync_url=TURSO_DB_URL,
             auth_token=TURSO_AUTH_TOKEN
         )
-        _conn.sync()
+        raw.sync()
     else:
         import sqlite3
-        _conn = sqlite3.connect(DB_PATH)
+        raw = sqlite3.connect(DB_PATH)
 
-    _conn.row_factory = dict_factory
+    _conn = DictConnection(raw)
     _conn.execute("PRAGMA journal_mode=WAL")
     _conn.execute("PRAGMA foreign_keys=ON")
     return _conn
 
 
 def sync_db():
-    if _conn and TURSO_DB_URL:
+    if _conn:
         _conn.sync()
 
 
