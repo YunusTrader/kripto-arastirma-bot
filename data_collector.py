@@ -12,7 +12,8 @@ log = logging.getLogger(__name__)
 
 
 async def fetch_json(session, url, params=None, retries=3):
-    for attempt in range(retries):
+    attempt = 0
+    while attempt < retries:
         try:
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 429:
@@ -26,6 +27,7 @@ async def fetch_json(session, url, params=None, retries=3):
         except Exception as e:
             log.warning(f"Fetch error ({attempt+1}/{retries}): {e}")
             await asyncio.sleep(2 ** attempt)
+        attempt += 1
     return None
 
 
