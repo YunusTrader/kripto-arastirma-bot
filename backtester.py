@@ -215,7 +215,6 @@ def calculate_all_scores():
                     if val:
                         _calc_score(conn, method, timeframe, dimension, val)
 
-    conn.close()
     log.info("Score calculation complete")
 
 

@@ -1,24 +1,50 @@
-import sqlite3
 import os
 import json
+import libsql_experimental as libsql
 from datetime import datetime
+from config import TURSO_DB_URL, TURSO_AUTH_TOKEN
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "crypto_research.db")
 
+_conn = None
+
+
+def dict_factory(cursor, row):
+    fields = [column[0] for column in cursor.description]
+    return dict(zip(fields, row))
+
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    global _conn
+    if _conn is not None:
+        return _conn
+
+    if TURSO_DB_URL and TURSO_AUTH_TOKEN:
+        _conn = libsql.connect(
+            DB_PATH,
+            sync_url=TURSO_DB_URL,
+            auth_token=TURSO_AUTH_TOKEN
+        )
+        _conn.sync()
+    else:
+        import sqlite3
+        _conn = sqlite3.connect(DB_PATH)
+
+    _conn.row_factory = dict_factory
+    _conn.execute("PRAGMA journal_mode=WAL")
+    _conn.execute("PRAGMA foreign_keys=ON")
+    return _conn
+
+
+def sync_db():
+    if _conn and TURSO_DB_URL:
+        _conn.sync()
 
 
 def init_db():
     conn = get_conn()
-    c = conn.cursor()
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS coins (
             symbol TEXT PRIMARY KEY,
             base_asset TEXT,
@@ -34,7 +60,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS candles (
             symbol TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -47,7 +73,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS market_regimes (
             timestamp INTEGER PRIMARY KEY,
             btc_price REAL,
@@ -61,7 +87,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS method_signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -90,7 +116,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS method_scores (
             method_name TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -112,7 +138,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS pumps (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -135,7 +161,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS whale_alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -150,7 +176,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS correlation_breaks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
@@ -166,7 +192,7 @@ def init_db():
         )
     """)
 
-    c.execute("""
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS sector_leaders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sector TEXT NOT NULL,
@@ -180,13 +206,13 @@ def init_db():
         )
     """)
 
-    c.execute("CREATE INDEX IF NOT EXISTS idx_candles_sym_tf ON candles(symbol, timeframe)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_method ON method_signals(method_name, timeframe)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_symbol ON method_signals(symbol)")
-    c.execute("CREATE INDEX IF NOT EXISTS idx_pumps_symbol ON pumps(symbol)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_candles_sym_tf ON candles(symbol, timeframe)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_method ON method_signals(method_name, timeframe)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_symbol ON method_signals(symbol)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_pumps_symbol ON pumps(symbol)")
 
     conn.commit()
-    conn.close()
+    sync_db()
 
 
 def save_candles(symbol, timeframe, candles_data):
@@ -196,7 +222,6 @@ def save_candles(symbol, timeframe, candles_data):
         [(symbol, timeframe, c[0], c[1], c[2], c[3], c[4], c[5], c[7], c[8] if len(c) > 8 else 0) for c in candles_data]
     )
     conn.commit()
-    conn.close()
 
 
 def get_candles(symbol, timeframe, limit=500):
@@ -205,7 +230,6 @@ def get_candles(symbol, timeframe, limit=500):
         "SELECT * FROM candles WHERE symbol=? AND timeframe=? ORDER BY open_time DESC LIMIT ?",
         (symbol, timeframe, limit)
     ).fetchall()
-    conn.close()
     return rows
 
 
@@ -226,13 +250,11 @@ def save_coin(symbol, base_asset, **kwargs):
             vals = list(kwargs.values()) + [symbol]
             conn.execute(f"UPDATE coins SET {sets} WHERE symbol=?", vals)
     conn.commit()
-    conn.close()
 
 
 def get_all_coins():
     conn = get_conn()
     rows = conn.execute("SELECT * FROM coins ORDER BY mcap_rank").fetchall()
-    conn.close()
     return rows
 
 
@@ -245,7 +267,6 @@ def save_regime(timestamp, **kwargs):
         [timestamp] + list(kwargs.values())
     )
     conn.commit()
-    conn.close()
 
 
 def get_latest_regime():
@@ -253,7 +274,6 @@ def get_latest_regime():
     row = conn.execute(
         "SELECT * FROM market_regimes ORDER BY timestamp DESC LIMIT 1"
     ).fetchone()
-    conn.close()
     return row
 
 
@@ -266,7 +286,6 @@ def save_signal(signal_dict):
         list(signal_dict.values())
     )
     conn.commit()
-    conn.close()
 
 
 def save_score(score_dict):
@@ -281,7 +300,6 @@ def save_score(score_dict):
         list(score_dict.values())
     )
     conn.commit()
-    conn.close()
 
 
 def get_scores(method_name=None, timeframe=None, dimension=None, dimension_value=None):
@@ -302,7 +320,6 @@ def get_scores(method_name=None, timeframe=None, dimension=None, dimension_value
         params.append(dimension_value)
     query += " ORDER BY win_rate_7d DESC"
     rows = conn.execute(query, params).fetchall()
-    conn.close()
     return rows
 
 
@@ -312,7 +329,6 @@ def save_pump(pump_dict):
     placeholders = ", ".join(["?"] * len(pump_dict))
     conn.execute(f"INSERT INTO pumps ({cols}) VALUES ({placeholders})", list(pump_dict.values()))
     conn.commit()
-    conn.close()
 
 
 def get_top_scored_coins(regime_dict, limit=10):
@@ -335,5 +351,4 @@ def get_top_scored_coins(regime_dict, limit=10):
         ORDER BY sc.win_rate_7d DESC
         LIMIT ?
     """, (regime_dict.get("btc_trend", "yatay"), 5, limit)).fetchall()
-    conn.close()
     return rows

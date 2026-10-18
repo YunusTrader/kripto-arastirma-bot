@@ -429,7 +429,6 @@ async def cmd_whale(m: types.Message):
     rows = conn.execute(
         "SELECT * FROM whale_alerts ORDER BY detected_time DESC LIMIT 10"
     ).fetchall()
-    conn.close()
 
     text = f"*Whale / Buyuk Islem Tespitleri*\n━━━━━━━━━━━━━━━━━━━━\nToplam: `{total}` tespit\n\n"
 
@@ -453,7 +452,6 @@ async def cmd_correlation(m: types.Message):
     rows = conn.execute(
         "SELECT * FROM correlation_breaks ORDER BY detected_time DESC LIMIT 10"
     ).fetchall()
-    conn.close()
 
     text = f"*Korelasyon Kirilmalari*\n━━━━━━━━━━━━━━━━━━━━\nToplam: `{total}` kirilma\n\n"
 
@@ -481,7 +479,6 @@ async def cmd_leader(m: types.Message):
         "GROUP BY sector "
         "ORDER BY avg_delay"
     ).fetchall()
-    conn.close()
 
     text = "*Sektor Lider-Takipci Analizi*\n━━━━━━━━━━━━━━━━━━━━\n\n"
 

@@ -3,3 +3,4 @@ aiohttp
 flask
 numpy
 apscheduler
+libsql-experimental

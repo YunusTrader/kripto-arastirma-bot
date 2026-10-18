@@ -93,7 +93,6 @@ def run_whale_scan(timeframe="4h"):
             total += 1
 
     conn.commit()
-    conn.close()
     log.info(f"Whale scan complete: {total} alerts found")
     return total
 
@@ -193,7 +192,6 @@ def detect_correlation_breaks():
         placeholders = ", ".join(["?"] * len(r))
         conn.execute(f"INSERT INTO correlation_breaks ({cols}) VALUES ({placeholders})", list(r.values()))
     conn.commit()
-    conn.close()
 
     log.info(f"Correlation breaks: {len(results)} detected")
     return results
@@ -301,7 +299,6 @@ def analyze_leader_follower(timeframe="4h"):
                     total += 1
 
     conn.commit()
-    conn.close()
     log.info(f"Leader-follower analysis: {total} patterns found")
     return total
 

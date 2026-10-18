@@ -184,7 +184,6 @@ async def initial_data_load(session):
     # Check if we already have candle data (e.g. DB persisted)
     conn = db.get_conn()
     candle_count = conn.execute("SELECT COUNT(*) as cnt FROM candles").fetchone()["cnt"]
-    conn.close()
 
     if candle_count > 10000:
         log.info(f"Found {candle_count} existing candles, doing incremental update only")

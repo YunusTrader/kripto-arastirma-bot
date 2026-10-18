@@ -4,6 +4,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 MY_CHAT_ID = int(os.getenv("MY_CHAT_ID", "0"))
 FLASK_PORT = int(os.getenv("PORT", 10000))
 
+TURSO_DB_URL = os.getenv("TURSO_DB_URL", "")
+TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "")
+
 BINANCE_BASE = "https://api.binance.com"
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 FEAR_GREED_URL = "https://api.alternative.me/fng/"

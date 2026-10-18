@@ -48,14 +48,17 @@ session = None
 async def scheduled_update_candles_1h():
     if session and symbols_list:
         await update_candles(session, symbols_list, "1h", limit=10)
+        db.sync_db()
 
 async def scheduled_update_candles_4h():
     if session and symbols_list:
         await update_candles(session, symbols_list, "4h", limit=5)
+        db.sync_db()
 
 async def scheduled_update_candles_1d():
     if session and symbols_list:
         await update_candles(session, symbols_list, "1d", limit=3)
+        db.sync_db()
 
 async def scheduled_update_coingecko():
     if session:
@@ -165,6 +168,9 @@ async def background_init(sess):
 
     log.info("Starting scheduler...")
     setup_scheduler()
+
+    db.sync_db()
+    log.info("Database synced to Turso")
 
     await broadcast("Veri yukleme ve backtest tamamlandi!\n\n/rapor komutu ile baslayabilirsiniz.")
     log.info("Background init complete")
