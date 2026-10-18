@@ -156,6 +156,17 @@ async def background_init(sess):
     except Exception as e:
         log.error(f"Regime error: {e}")
 
+    log.info("Clearing old backtest data for fresh run...")
+    try:
+        conn = db.get_conn()
+        conn.execute("DELETE FROM method_signals")
+        conn.execute("DELETE FROM method_scores")
+        conn.execute("DELETE FROM pumps")
+        conn.commit()
+        log.info("Old backtest data cleared")
+    except Exception as e:
+        log.error(f"Clear error: {e}")
+
     log.info("Running initial backtest...")
     try:
         await loop.run_in_executor(None, run_full_backtest)

@@ -268,3 +268,16 @@ def api_status():
         "leader_follower": lf_count,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     })
+
+
+@dashboard_bp.route("/api/reset-backtest", methods=["POST"])
+def api_reset_backtest():
+    conn = db.get_conn()
+    conn.execute("DELETE FROM method_signals")
+    conn.execute("DELETE FROM method_scores")
+    conn.execute("DELETE FROM pumps")
+    conn.execute("DELETE FROM whale_alerts")
+    conn.execute("DELETE FROM correlation_breaks")
+    conn.execute("DELETE FROM sector_leaders")
+    conn.commit()
+    return jsonify({"status": "ok", "message": "Backtest verileri sıfırlandı. Yeni backtest scheduler ile çalışacak."})
