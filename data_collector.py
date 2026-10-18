@@ -181,10 +181,42 @@ async def initial_data_load(session):
                 sector=determine_sector(base)
             )
 
-    for tf in TIMEFRAMES:
-        log.info(f"Collecting {tf} candles...")
-        await collect_candles(session, symbols, tf)
-        await asyncio.sleep(1)
+    # Check if we already have candle data (e.g. DB persisted)
+    conn = db.get_conn()
+    candle_count = conn.execute("SELECT COUNT(*) as cnt FROM candles").fetchone()["cnt"]
+    conn.close()
+
+    if candle_count > 10000:
+        log.info(f"Found {candle_count} existing candles, doing incremental update only")
+        for tf in TIMEFRAMES:
+            limit = KLINE_LIMITS.get(tf, 500)
+            update_limit = min(50, limit)
+            log.info(f"Updating {tf} candles (last {update_limit})...")
+            await collect_candles(session, symbols, tf, limit=update_limit)
+            await asyncio.sleep(1)
+    else:
+        log.info("No existing data, doing full initial load")
+        # Priority: load top 100 coins first for faster usability
+        ranked_symbols = []
+        rest_symbols = []
+        for s in symbols:
+            base = s.replace("USDT", "")
+            if base in cg_rankings and cg_rankings[base]["rank"] <= 100:
+                ranked_symbols.append(s)
+            else:
+                rest_symbols.append(s)
+        log.info(f"Priority load: {len(ranked_symbols)} top coins first, then {len(rest_symbols)} rest")
+
+        for tf in TIMEFRAMES:
+            log.info(f"Collecting {tf} candles (top coins)...")
+            await collect_candles(session, ranked_symbols, tf)
+            await asyncio.sleep(1)
+        log.info("Top coins loaded — bot is now usable")
+
+        for tf in TIMEFRAMES:
+            log.info(f"Collecting {tf} candles (remaining coins)...")
+            await collect_candles(session, rest_symbols, tf)
+            await asyncio.sleep(1)
 
     log.info("Initial data load complete")
     return symbols
