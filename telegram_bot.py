@@ -2,7 +2,7 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from config import BOT_TOKEN, MY_CHAT_ID
+from config import BOT_TOKEN, MY_CHAT_ID, TIMEFRAMES
 import database as db
 from market_regime import get_current_regime
 from indicators import detect_signals, get_indicator_snapshot
@@ -50,6 +50,9 @@ async def cmd_start(m: types.Message):
         "/top50 - Top 50 mcap analizi\n"
         "/sektor DeFi - Sektor raporu\n"
         "/karsilastir RSI MACD - Yontem karsilastir\n"
+        "/whale - Whale/buyuk islem tespitleri\n"
+        "/korelasyon - Korelasyon kirilmalari\n"
+        "/lider - Sektor lider-takipci analizi\n"
         "/yardim - Bu liste"
     )
 
@@ -417,3 +420,80 @@ def build_daily_report():
 
     text += "\nDetay icin: /coin [isim] veya /yontem [isim]"
     return text
+
+
+@dp.message(Command("whale"))
+async def cmd_whale(m: types.Message):
+    conn = db.get_conn()
+    total = conn.execute("SELECT COUNT(*) as cnt FROM whale_alerts").fetchone()["cnt"]
+    rows = conn.execute(
+        "SELECT * FROM whale_alerts ORDER BY detected_time DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+
+    text = f"*Whale / Buyuk Islem Tespitleri*\n━━━━━━━━━━━━━━━━━━━━\nToplam: `{total}` tespit\n\n"
+
+    if not rows:
+        text += "Henuz whale tespiti yok."
+    else:
+        for r in rows:
+            r = dict(r)
+            ret = r.get("pct_change_24h")
+            ret_str = f"{ret:+.1f}%" if ret is not None else "—"
+            text += f"🐋 `{r['symbol']:10s}` | `{r['ratio']:.1f}x` buyuk | 24s: `{ret_str}`\n"
+
+    text += "\n_Ort. islem buyuklugu 30 gunluk ortalamanin 5x+ ustu_"
+    await safe_send(m.chat.id, text)
+
+
+@dp.message(Command("korelasyon"))
+async def cmd_correlation(m: types.Message):
+    conn = db.get_conn()
+    total = conn.execute("SELECT COUNT(*) as cnt FROM correlation_breaks").fetchone()["cnt"]
+    rows = conn.execute(
+        "SELECT * FROM correlation_breaks ORDER BY detected_time DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+
+    text = f"*Korelasyon Kirilmalari*\n━━━━━━━━━━━━━━━━━━━━\nToplam: `{total}` kirilma\n\n"
+
+    if not rows:
+        text += "Henuz korelasyon kirilmasi tespit edilmedi."
+    else:
+        for r in rows:
+            r = dict(r)
+            ret = r.get("pct_change_7d")
+            ret_str = f"{ret:+.1f}%" if ret is not None else "—"
+            text += f"🔗 `{r['symbol']:10s}` | 30g: `{r['corr_30d']:.2f}` → 48s: `{r['corr_48h']:.2f}` | 7g: `{ret_str}`\n"
+
+    text += "\n_BTC ile yuksek korelasyonlu coinlerin aniden bagimsiz hareket ettigi anlar_"
+    await safe_send(m.chat.id, text)
+
+
+@dp.message(Command("lider"))
+async def cmd_leader(m: types.Message):
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT sector, leader_symbol, "
+        "AVG(follower_delay_hours) as avg_delay, "
+        "COUNT(*) as cnt "
+        "FROM sector_leaders "
+        "GROUP BY sector "
+        "ORDER BY avg_delay"
+    ).fetchall()
+    conn.close()
+
+    text = "*Sektor Lider-Takipci Analizi*\n━━━━━━━━━━━━━━━━━━━━\n\n"
+
+    if not rows:
+        text += "Henuz lider-takipci verisi yok."
+    else:
+        for r in rows:
+            r = dict(r)
+            text += (
+                f"*{r['sector']}* — Lider: `{r['leader_symbol'].replace('USDT','')}`\n"
+                f"  Ort. gecikme: `{r['avg_delay']:.1f} saat` | `{r['cnt']}` pattern\n\n"
+            )
+
+    text += "_Lider coin %5+ hareket ettiginde takipcilerin tepki suresi_"
+    await safe_send(m.chat.id, text)

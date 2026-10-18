@@ -42,6 +42,7 @@ def init_db():
             open REAL, high REAL, low REAL, close REAL,
             volume REAL,
             quote_volume REAL,
+            num_trades INTEGER DEFAULT 0,
             PRIMARY KEY (symbol, timeframe, open_time)
         )
     """)
@@ -134,6 +135,51 @@ def init_db():
         )
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS whale_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            timeframe TEXT NOT NULL,
+            detected_time INTEGER NOT NULL,
+            avg_trade_size REAL,
+            normal_avg_trade_size REAL,
+            ratio REAL,
+            price_at_detection REAL,
+            price_after_24h REAL,
+            pct_change_24h REAL
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS correlation_breaks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            detected_time INTEGER NOT NULL,
+            corr_30d REAL,
+            corr_48h REAL,
+            corr_diff REAL,
+            price_at_detection REAL,
+            price_after_7d REAL,
+            pct_change_7d REAL,
+            btc_trend TEXT,
+            sector TEXT
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sector_leaders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sector TEXT NOT NULL,
+            leader_symbol TEXT NOT NULL,
+            leader_move_pct REAL,
+            leader_move_time INTEGER,
+            follower_symbol TEXT NOT NULL,
+            follower_move_pct REAL,
+            follower_delay_hours REAL,
+            timeframe TEXT
+        )
+    """)
+
     c.execute("CREATE INDEX IF NOT EXISTS idx_candles_sym_tf ON candles(symbol, timeframe)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_signals_method ON method_signals(method_name, timeframe)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_signals_symbol ON method_signals(symbol)")
@@ -146,8 +192,8 @@ def init_db():
 def save_candles(symbol, timeframe, candles_data):
     conn = get_conn()
     conn.executemany(
-        "INSERT OR REPLACE INTO candles VALUES (?,?,?,?,?,?,?,?,?)",
-        [(symbol, timeframe, c[0], c[1], c[2], c[3], c[4], c[5], c[7]) for c in candles_data]
+        "INSERT OR REPLACE INTO candles VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [(symbol, timeframe, c[0], c[1], c[2], c[3], c[4], c[5], c[7], c[8] if len(c) > 8 else 0) for c in candles_data]
     )
     conn.commit()
     conn.close()

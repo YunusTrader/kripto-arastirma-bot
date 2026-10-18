@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 ALL_METHODS = [
     "rsi", "macd", "ema_20_50", "ema_50_200",
     "bb_squeeze", "bb_breakout", "volume_spike",
-    "accumulation", "multi_signal"
+    "accumulation", "multi_signal", "whale_activity"
 ]
 
 DIMENSIONS = [

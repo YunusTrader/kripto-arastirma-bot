@@ -115,6 +115,9 @@ footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);borde
   <button class="tab" data-tab="sectors">Sektör Analizi</button>
   <button class="tab" data-tab="pumps">Pump Anatomisi</button>
   <button class="tab" data-tab="mcap">Market Cap</button>
+  <button class="tab" data-tab="whales">Whale Takip</button>
+  <button class="tab" data-tab="corr">Korelasyon</button>
+  <button class="tab" data-tab="leader">Lider-Takipçi</button>
 </div>
 
 <div class="tab-content active" id="tab-methods">
@@ -146,6 +149,49 @@ footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);borde
   <div class="grid-2">
     <div class="card"><h3>Market Cap Grubuna Göre Başarı</h3><div class="chart-wrap"><canvas id="chart-mcap"></canvas></div></div>
     <div class="card"><h3>Grup Özeti</h3><div id="mcap-summary" class="loading">Veriler yükleniyor</div></div>
+  </div>
+</div>
+
+<!-- TAB: Whales -->
+<div class="tab-content" id="tab-whales">
+  <div class="grid-2">
+    <div class="card">
+      <h3>Whale / Büyük İşlem Tespitleri</h3>
+      <div id="whale-list" class="loading">Veriler yükleniyor</div>
+    </div>
+    <div class="card">
+      <h3>Whale İstatistikleri</h3>
+      <div id="whale-stats" class="loading">Veriler yükleniyor</div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Correlation -->
+<div class="tab-content" id="tab-corr">
+  <div class="grid-2">
+    <div class="card">
+      <h3>Korelasyon Kırılmaları</h3>
+      <div id="corr-list" class="loading">Veriler yükleniyor</div>
+    </div>
+    <div class="card">
+      <h3>Korelasyon İstatistikleri</h3>
+      <div id="corr-stats" class="loading">Veriler yükleniyor</div>
+      <div class="chart-wrap" style="margin-top:16px"><canvas id="chart-corr"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: Leader-Follower -->
+<div class="tab-content" id="tab-leader">
+  <div class="grid-2">
+    <div class="card">
+      <h3>Sektör Lider-Takipçi Gecikmeleri</h3>
+      <div id="leader-summary" class="loading">Veriler yükleniyor</div>
+    </div>
+    <div class="card">
+      <h3>Detaylı Lider-Takipçi Eşleşmeleri</h3>
+      <div id="leader-detail" class="loading">Veriler yükleniyor</div>
+    </div>
   </div>
 </div>
 
@@ -192,7 +238,7 @@ async function loadStatus() {
   if (!s) return;
   $('#update-time').textContent = 'Son güncelleme: ' + s.timestamp;
   $('#db-stats').innerHTML =
-    `<span>Coin: ${s.coins}</span><span>Mum: ${s.candles.toLocaleString()}</span><span>Sinyal: ${s.signals.toLocaleString()}</span><span>Pump: ${s.pumps}</span>`;
+    `<span>Coin: ${s.coins}</span><span>Mum: ${s.candles.toLocaleString()}</span><span>Sinyal: ${s.signals.toLocaleString()}</span><span>Pump: ${s.pumps}</span><span>Whale: ${s.whales||0}</span><span>Korelasyon: ${s.corr_breaks||0}</span>`;
 }
 
 async function loadRegime() {
@@ -421,6 +467,132 @@ async function loadMcap() {
   $('#mcap-summary').innerHTML = html;
 }
 
+// ── Whale Tab ──
+async function loadWhales() {
+  const [alerts, stats] = await Promise.all([api('/api/whale-alerts'), api('/api/whale-stats')]);
+  if (!alerts || !alerts.length) {
+    $('#whale-list').innerHTML = '<p style="color:var(--fg-dim)">Henüz whale tespiti yok.</p>';
+  } else {
+    let html = '';
+    for (const a of alerts.slice(0, 10)) {
+      const date = new Date(a.detected_time * 1000).toLocaleDateString('tr');
+      const ret = a.pct_change_24h;
+      const retCls = ret > 0 ? 'up' : ret < 0 ? 'down' : 'neutral';
+      html += `<div class="pump-card">
+        <div class="pump-icon">🐋</div>
+        <div class="pump-info">
+          <h4>${a.symbol}</h4>
+          <p>${date} — Ort. işlem: $${(a.avg_trade_size||0).toLocaleString('en',{maximumFractionDigits:0})} (normal: $${(a.normal_avg_trade_size||0).toLocaleString('en',{maximumFractionDigits:0})})</p>
+        </div>
+        <div class="pump-pct">
+          <span class="${retCls}">${a.ratio}x</span>
+          ${ret != null ? `<br><span style="font-size:11px" class="${retCls}">${ret>0?'+':''}${ret.toFixed(1)}%</span>` : ''}
+        </div>
+      </div>`;
+    }
+    $('#whale-list').innerHTML = html;
+  }
+  if (stats && stats.total > 0) {
+    $('#whale-stats').innerHTML = `
+      <div class="regime-bar" style="margin:0">
+        <div class="regime-card"><div class="label">Toplam Tespit</div><div class="value">${stats.total}</div></div>
+        <div class="regime-card"><div class="label">Ort. Büyüklük Oranı</div><div class="value">${stats.avg_ratio}x</div></div>
+        <div class="regime-card"><div class="label">24s Pozitif Oran</div><div class="value ${stats.positive_pct>=50?'up':'down'}">%${stats.positive_pct}</div></div>
+        <div class="regime-card"><div class="label">Ort. 24s Getiri</div><div class="value ${stats.avg_return_24h>=0?'up':'down'}">${stats.avg_return_24h>=0?'+':''}${stats.avg_return_24h}%</div></div>
+      </div>
+      <p style="margin-top:12px;font-size:12px;color:var(--fg-dim)">Whale tespiti: Bir mumdaki ortalama işlem büyüklüğü 30 günlük ortalamanın 5x+ üstüne çıktığında tetiklenir.</p>`;
+  } else {
+    $('#whale-stats').innerHTML = '<p style="color:var(--fg-dim)">Henüz istatistik yok.</p>';
+  }
+}
+
+// ── Correlation Tab ──
+async function loadCorrelation() {
+  const [breaks, stats] = await Promise.all([api('/api/correlation-breaks'), api('/api/correlation-stats')]);
+  if (!breaks || !breaks.length) {
+    $('#corr-list').innerHTML = '<p style="color:var(--fg-dim)">Henüz korelasyon kırılması tespit edilmedi.</p>';
+  } else {
+    let html = '';
+    for (const b of breaks.slice(0, 10)) {
+      const date = new Date(b.detected_time * 1000).toLocaleDateString('tr');
+      const ret = b.pct_change_7d;
+      const retCls = ret > 0 ? 'up' : ret < 0 ? 'down' : 'neutral';
+      html += `<div class="pump-card">
+        <div class="pump-icon">🔗💥</div>
+        <div class="pump-info">
+          <h4>${b.symbol} <span class="badge badge-yellow">${b.sector||''}</span></h4>
+          <p>${date} — 30g korelasyon: ${b.corr_30d} → 48s: ${b.corr_48h} (fark: ${b.corr_diff})</p>
+        </div>
+        <div class="pump-pct ${retCls}">${ret!=null?(ret>0?'+':'')+ret.toFixed(1)+'%':'—'}</div>
+      </div>`;
+    }
+    $('#corr-list').innerHTML = html;
+  }
+  if (stats && stats.total > 0) {
+    let sectorHtml = '';
+    if (stats.by_sector) {
+      for (const s of stats.by_sector) {
+        const cls = s.avg_return >= 0 ? 'up' : 'down';
+        sectorHtml += `<div class="coin-row">
+          <span class="coin-symbol">${s.sector}</span>
+          <span class="coin-method">${s.count} kırılma</span>
+          <span class="coin-score ${cls}">${s.avg_return>=0?'+':''}${s.avg_return}%</span>
+        </div>`;
+      }
+    }
+    $('#corr-stats').innerHTML = `
+      <div class="regime-bar" style="margin:0">
+        <div class="regime-card"><div class="label">Toplam Kırılma</div><div class="value">${stats.total}</div></div>
+        <div class="regime-card"><div class="label">7g Pozitif Oran</div><div class="value ${stats.positive_pct>=50?'up':'down'}">%${stats.positive_pct}</div></div>
+        <div class="regime-card"><div class="label">Ort. Korelasyon Farkı</div><div class="value">${stats.avg_diff}</div></div>
+        <div class="regime-card"><div class="label">Ort. 7g Getiri</div><div class="value ${stats.avg_return_7d>=0?'up':'down'}">${stats.avg_return_7d>=0?'+':''}${stats.avg_return_7d}%</div></div>
+      </div>
+      <p style="margin:12px 0 8px;font-size:13px;font-weight:600;color:var(--fg-dim)">Sektör bazlı:</p>
+      ${sectorHtml}
+      <p style="margin-top:12px;font-size:12px;color:var(--fg-dim)">Normalde BTC ile yüksek korelasyonlu coinlerin aniden bağımsız hareket ettiği anları tespit eder.</p>`;
+  } else {
+    $('#corr-stats').innerHTML = '<p style="color:var(--fg-dim)">Henüz istatistik yok.</p>';
+  }
+}
+
+// ── Leader-Follower Tab ──
+async function loadLeaderFollower() {
+  const [summary, detail] = await Promise.all([api('/api/leader-follower-summary'), api('/api/leader-follower')]);
+  if (!summary || !summary.length) {
+    $('#leader-summary').innerHTML = '<p style="color:var(--fg-dim)">Henüz lider-takipçi verisi yok.</p>';
+  } else {
+    let html = '<table class="dt"><thead><tr><th>Sektör</th><th>Ort. Gecikme</th><th>Ort. Hareket</th><th>Pattern</th></tr></thead><tbody>';
+    for (const s of summary) {
+      html += `<tr>
+        <td style="font-weight:600">${s.sector}</td>
+        <td><span class="mono">${(s.avg_delay||0).toFixed(1)} saat</span></td>
+        <td class="up">%${(s.avg_move||0).toFixed(1)}</td>
+        <td>${s.total_patterns}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    html += '<p style="margin-top:12px;font-size:12px;color:var(--fg-dim)">Sektör lideri %5+ hareket ettiğinde takipçilerin ortalama tepki süresi ve büyüklüğü.</p>';
+    $('#leader-summary').innerHTML = html;
+  }
+  if (!detail || !detail.length) {
+    $('#leader-detail').innerHTML = '<p style="color:var(--fg-dim)">Henüz detay yok.</p>';
+  } else {
+    let html = '';
+    for (const d of detail.slice(0, 15)) {
+      html += `<div class="coin-row">
+        <span class="coin-symbol" style="min-width:50px">${d.sector}</span>
+        <span class="mono" style="min-width:80px">${d.leader_symbol.replace('USDT','')}</span>
+        <span style="color:var(--fg-dim)">→</span>
+        <span class="mono" style="min-width:80px">${d.follower_symbol.replace('USDT','')}</span>
+        <span class="coin-method">${(d.avg_delay||0).toFixed(1)}s gecikme</span>
+        <span class="coin-score up">%${(d.avg_move||0).toFixed(1)}</span>
+        <span style="font-size:11px;color:var(--fg-dim)">(${d.cnt}x)</span>
+      </div>`;
+    }
+    $('#leader-detail').innerHTML = html;
+  }
+}
+
 // Init
 (async () => {
   const [, regime] = await Promise.all([loadStatus(), loadRegime()]);
@@ -430,6 +602,9 @@ async function loadMcap() {
   loadSectors();
   loadPumps();
   loadMcap();
+  loadWhales();
+  loadCorrelation();
+  loadLeaderFollower();
   // Auto refresh every 5 min
   setInterval(async () => {
     await loadStatus();

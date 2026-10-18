@@ -170,9 +170,30 @@ def detect_signals(candles):
                     "price_change": round(price_change, 2)
                 }
 
+    # Whale activity (avg trade size anomaly)
+    if len(candles) >= 31:
+        num_trades_list = [c.get("num_trades", 0) for c in candles]
+        if num_trades_list[-1] and num_trades_list[-1] > 0:
+            current_avg_trade = volumes[-1] / num_trades_list[-1]
+            lookback_avgs = []
+            for j in range(-31, -1):
+                nt = num_trades_list[j] if abs(j) <= len(num_trades_list) else 0
+                vol = volumes[j] if abs(j) <= len(volumes) else 0
+                if nt > 0:
+                    lookback_avgs.append(vol / nt)
+            if lookback_avgs:
+                normal_avg = sum(lookback_avgs) / len(lookback_avgs)
+                if normal_avg > 0:
+                    whale_ratio = current_avg_trade / normal_avg
+                    if whale_ratio >= 5.0:
+                        signals["whale_activity"] = {
+                            "type": "large_trades",
+                            "value": round(whale_ratio, 1)
+                        }
+
     # Multi-timeframe alignment count
     bullish_count = sum(1 for s in signals.values() if s["type"] in
-                        ("oversold", "bullish_cross", "golden_cross", "squeeze", "spike", "accumulation"))
+                        ("oversold", "bullish_cross", "golden_cross", "squeeze", "spike", "accumulation", "large_trades"))
     if bullish_count >= 3:
         signals["multi_signal"] = {"type": "strong_alignment", "value": bullish_count}
 

@@ -16,6 +16,7 @@ from data_collector import (
 from coin_classifier import classify_all_coins
 from market_regime import update_regime
 from backtester import run_full_backtest
+from advanced_analytics import run_all_advanced_analytics
 from telegram_bot import dp, bot, broadcast, build_daily_report
 
 logging.basicConfig(
@@ -70,6 +71,9 @@ async def scheduled_classify():
 async def scheduled_backtest():
     run_full_backtest()
 
+async def scheduled_advanced():
+    run_all_advanced_analytics()
+
 async def scheduled_daily_report():
     text = build_daily_report()
     await broadcast(text)
@@ -110,6 +114,8 @@ def setup_scheduler():
                       seconds=DATA_UPDATE_INTERVALS["classify"], id="classify")
     scheduler.add_job(scheduled_backtest, "interval",
                       seconds=DATA_UPDATE_INTERVALS["backtest"], id="backtest")
+    scheduler.add_job(scheduled_advanced, "interval",
+                      seconds=DATA_UPDATE_INTERVALS.get("advanced", 43200), id="advanced")
 
     scheduler.add_job(scheduled_daily_report, "cron",
                       hour=DAILY_REPORT_HOUR, minute=0, id="daily_report")
@@ -150,6 +156,12 @@ async def background_init(sess):
         run_full_backtest()
     except Exception as e:
         log.error(f"Backtest error: {e}")
+
+    log.info("Running advanced analytics...")
+    try:
+        run_all_advanced_analytics()
+    except Exception as e:
+        log.error(f"Advanced analytics error: {e}")
 
     log.info("Starting scheduler...")
     setup_scheduler()

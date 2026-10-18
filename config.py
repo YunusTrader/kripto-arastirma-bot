@@ -56,4 +56,5 @@ DATA_UPDATE_INTERVALS = {
     "regime": 900,        # 15 min
     "classify": 86400,    # 24 hours
     "backtest": 86400,    # 24 hours
+    "advanced": 43200,    # 12 hours
 }

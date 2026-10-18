@@ -147,6 +147,116 @@ def api_coins():
     return jsonify(rows_to_list(rows)[:50])
 
 
+@dashboard_bp.route("/api/whale-alerts")
+def api_whale_alerts():
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT * FROM whale_alerts ORDER BY detected_time DESC LIMIT 20"
+    ).fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
+@dashboard_bp.route("/api/whale-stats")
+def api_whale_stats():
+    conn = db.get_conn()
+    total = conn.execute("SELECT COUNT(*) as cnt FROM whale_alerts").fetchone()["cnt"]
+    if total == 0:
+        conn.close()
+        return jsonify({"total": 0, "avg_ratio": 0, "positive_pct": 0})
+    positive = conn.execute(
+        "SELECT COUNT(*) as cnt FROM whale_alerts WHERE pct_change_24h > 0"
+    ).fetchone()["cnt"]
+    avg_ratio = conn.execute(
+        "SELECT AVG(ratio) as avg FROM whale_alerts"
+    ).fetchone()["avg"] or 0
+    avg_return = conn.execute(
+        "SELECT AVG(pct_change_24h) as avg FROM whale_alerts WHERE pct_change_24h IS NOT NULL"
+    ).fetchone()["avg"] or 0
+    conn.close()
+    return jsonify({
+        "total": total,
+        "avg_ratio": round(avg_ratio, 1),
+        "positive_pct": round(positive / total * 100, 1) if total else 0,
+        "avg_return_24h": round(avg_return, 2),
+    })
+
+
+@dashboard_bp.route("/api/correlation-breaks")
+def api_corr_breaks():
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT * FROM correlation_breaks ORDER BY detected_time DESC LIMIT 20"
+    ).fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
+@dashboard_bp.route("/api/correlation-stats")
+def api_corr_stats():
+    conn = db.get_conn()
+    total = conn.execute("SELECT COUNT(*) as cnt FROM correlation_breaks").fetchone()["cnt"]
+    if total == 0:
+        conn.close()
+        return jsonify({"total": 0, "positive_pct": 0, "avg_diff": 0})
+    positive = conn.execute(
+        "SELECT COUNT(*) as cnt FROM correlation_breaks WHERE pct_change_7d > 0"
+    ).fetchone()["cnt"]
+    avg_diff = conn.execute(
+        "SELECT AVG(corr_diff) as avg FROM correlation_breaks"
+    ).fetchone()["avg"] or 0
+    avg_return = conn.execute(
+        "SELECT AVG(pct_change_7d) as avg FROM correlation_breaks WHERE pct_change_7d IS NOT NULL"
+    ).fetchone()["avg"] or 0
+    # By sector
+    sectors = conn.execute(
+        "SELECT sector, COUNT(*) as cnt, AVG(pct_change_7d) as avg_ret "
+        "FROM correlation_breaks GROUP BY sector ORDER BY cnt DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify({
+        "total": total,
+        "positive_pct": round(positive / total * 100, 1) if total else 0,
+        "avg_diff": round(avg_diff, 3),
+        "avg_return_7d": round(avg_return, 2),
+        "by_sector": [{"sector": r["sector"], "count": r["cnt"],
+                       "avg_return": round(r["avg_ret"] or 0, 2)} for r in sectors],
+    })
+
+
+@dashboard_bp.route("/api/leader-follower")
+def api_leader_follower():
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT sector, leader_symbol, follower_symbol, "
+        "AVG(follower_delay_hours) as avg_delay, "
+        "AVG(follower_move_pct) as avg_move, "
+        "COUNT(*) as cnt "
+        "FROM sector_leaders "
+        "GROUP BY sector, leader_symbol, follower_symbol "
+        "HAVING cnt >= 2 "
+        "ORDER BY sector, avg_delay"
+    ).fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
+@dashboard_bp.route("/api/leader-follower-summary")
+def api_lf_summary():
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT sector, "
+        "AVG(follower_delay_hours) as avg_delay, "
+        "AVG(ABS(follower_move_pct)) as avg_move, "
+        "COUNT(*) as total_patterns "
+        "FROM sector_leaders "
+        "GROUP BY sector "
+        "ORDER BY avg_delay"
+    ).fetchall()
+    conn.close()
+    return jsonify(rows_to_list(rows))
+
+
 @dashboard_bp.route("/api/status")
 def api_status():
     conn = db.get_conn()
@@ -155,6 +265,9 @@ def api_status():
     signal_count = conn.execute("SELECT COUNT(*) as cnt FROM method_signals").fetchone()["cnt"]
     score_count = conn.execute("SELECT COUNT(*) as cnt FROM method_scores").fetchone()["cnt"]
     pump_count = conn.execute("SELECT COUNT(*) as cnt FROM pumps").fetchone()["cnt"]
+    whale_count = conn.execute("SELECT COUNT(*) as cnt FROM whale_alerts").fetchone()["cnt"]
+    corr_count = conn.execute("SELECT COUNT(*) as cnt FROM correlation_breaks").fetchone()["cnt"]
+    lf_count = conn.execute("SELECT COUNT(*) as cnt FROM sector_leaders").fetchone()["cnt"]
     conn.close()
     return jsonify({
         "coins": coin_count,
@@ -162,5 +275,8 @@ def api_status():
         "signals": signal_count,
         "scores": score_count,
         "pumps": pump_count,
+        "whales": whale_count,
+        "corr_breaks": corr_count,
+        "leader_follower": lf_count,
         "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     })
