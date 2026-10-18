@@ -6,6 +6,7 @@ FLASK_PORT = int(os.getenv("PORT", 10000))
 
 TURSO_DB_URL = os.getenv("TURSO_DB_URL", "")
 TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "")
+COINGECKO_KEY = os.getenv("COINGECKO_KEY", "")
 
 BINANCE_BASE = "https://api.binance.com"
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"

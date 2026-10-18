@@ -3,19 +3,21 @@ import asyncio
 import time
 import logging
 from config import (
-    BINANCE_BASE, COINGECKO_BASE, FEAR_GREED_URL,
+    BINANCE_BASE, COINGECKO_BASE, COINGECKO_KEY, FEAR_GREED_URL,
     TIMEFRAMES, KLINE_LIMITS, SECTORS
 )
 import database as db
 
 log = logging.getLogger(__name__)
 
+CG_HEADERS = {"x-cg-demo-api-key": COINGECKO_KEY} if COINGECKO_KEY else None
 
-async def fetch_json(session, url, params=None, retries=3):
+
+async def fetch_json(session, url, params=None, headers=None, retries=3):
     attempt = 0
     while attempt < retries:
         try:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(url, params=params, headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as resp:
                 if resp.status == 429:
                     wait = int(resp.headers.get("Retry-After", 5))
                     log.warning(f"Rate limited, waiting {wait}s")
@@ -80,7 +82,8 @@ async def fetch_coingecko_market_data(session, page=1, per_page=250):
             "per_page": per_page,
             "page": page,
             "sparkline": "false"
-        }
+        },
+        headers=CG_HEADERS
     )
     return data or []
 
@@ -120,14 +123,14 @@ def determine_sector(base_asset):
 
 
 async def fetch_btc_dominance(session):
-    data = await fetch_json(session, f"{COINGECKO_BASE}/global")
+    data = await fetch_json(session, f"{COINGECKO_BASE}/global", headers=CG_HEADERS)
     if data and "data" in data:
         return data["data"].get("market_cap_percentage", {}).get("btc", 0)
     return 0
 
 
 async def fetch_total_market_volume(session):
-    data = await fetch_json(session, f"{COINGECKO_BASE}/global")
+    data = await fetch_json(session, f"{COINGECKO_BASE}/global", headers=CG_HEADERS)
     if data and "data" in data:
         return data["data"].get("total_volume", {}).get("usd", 0)
     return 0
