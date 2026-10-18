@@ -165,29 +165,35 @@ async def initial_data_load(session):
     symbols = [s["symbol"] for s in symbols_info]
     log.info(f"Found {len(symbols)} USDT pairs")
 
+    log.info("Saving coins to DB...")
+    conn = db.get_conn()
     for s in symbols_info:
-        db.save_coin(s["symbol"], s["base"])
+        existing = conn.execute("SELECT 1 FROM coins WHERE symbol=?", (s["symbol"],)).fetchone()
+        if not existing:
+            conn.execute("INSERT INTO coins (symbol, base_asset) VALUES (?,?)", (s["symbol"], s["base"]))
+    conn.commit()
+    log.info(f"Saved {len(symbols_info)} coins")
 
+    log.info("Fetching CoinGecko rankings...")
     cg_rankings = await collect_coingecko_rankings(session)
+    log.info(f"Got rankings for {len(cg_rankings)} coins")
+
     for s in symbols_info:
         base = s["base"]
         if base in cg_rankings:
             rank = cg_rankings[base]["rank"]
-            db.save_coin(
-                s["symbol"], s["base"],
-                mcap_rank=rank,
-                mcap_group=determine_mcap_group(rank),
-                sector=determine_sector(base)
+            conn.execute(
+                "UPDATE coins SET mcap_rank=?, mcap_group=?, sector=? WHERE symbol=?",
+                (rank, determine_mcap_group(rank), determine_sector(base), s["symbol"])
             )
         else:
-            db.save_coin(
-                s["symbol"], s["base"],
-                mcap_group="200+",
-                sector=determine_sector(base)
+            conn.execute(
+                "UPDATE coins SET mcap_group=?, sector=? WHERE symbol=?",
+                ("200+", determine_sector(base), s["symbol"])
             )
+    conn.commit()
+    log.info("Coin classifications saved")
 
-    # Check if we already have candle data (e.g. DB persisted)
-    conn = db.get_conn()
     candle_count = conn.execute("SELECT COUNT(*) as cnt FROM candles").fetchone()["cnt"]
 
     if candle_count > 10000:
