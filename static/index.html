@@ -200,6 +200,14 @@ footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);borde
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+// Tabs — register first so navigation works even if charts fail
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  $$('.tab-content').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $('#tab-' + t.dataset.tab).classList.add('active');
+}));
+
 const cs = getComputedStyle(document.documentElement);
 const C = {
   accent: cs.getPropertyValue('--accent').trim(),
@@ -210,16 +218,7 @@ const C = {
   border: cs.getPropertyValue('--border').trim(),
 };
 
-Chart.defaults.color = C.fgDim;
-Chart.defaults.borderColor = C.border;
-
-// Tabs
-$$('.tab').forEach(t => t.addEventListener('click', () => {
-  $$('.tab').forEach(x => x.classList.remove('active'));
-  $$('.tab-content').forEach(x => x.classList.remove('active'));
-  t.classList.add('active');
-  $('#tab-' + t.dataset.tab).classList.add('active');
-}));
+try { Chart.defaults.color = C.fgDim; Chart.defaults.borderColor = C.border; } catch(e) {}
 
 function trendClass(t) { return t === 'yukselis' ? 'up' : t === 'dusus' ? 'down' : 'neutral'; }
 function trendIcon(t) { return t === 'yukselis' ? '📈' : t === 'dusus' ? '📉' : '➡️'; }
