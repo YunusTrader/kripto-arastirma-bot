@@ -1,0 +1,208 @@
+import aiohttp
+import asyncio
+import time
+import logging
+from config import (
+    BINANCE_BASE, COINGECKO_BASE, FEAR_GREED_URL,
+    TIMEFRAMES, KLINE_LIMITS, SECTORS
+)
+import database as db
+
+log = logging.getLogger(__name__)
+
+
+async def fetch_json(session, url, params=None, retries=3):
+    for attempt in range(retries):
+        try:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                if resp.status == 429:
+                    wait = int(resp.headers.get("Retry-After", 5))
+                    log.warning(f"Rate limited, waiting {wait}s")
+                    await asyncio.sleep(wait)
+                    continue
+                if resp.status == 200:
+                    return await resp.json()
+                log.warning(f"HTTP {resp.status} for {url}")
+        except Exception as e:
+            log.warning(f"Fetch error ({attempt+1}/{retries}): {e}")
+            await asyncio.sleep(2 ** attempt)
+    return None
+
+
+async def get_all_usdt_symbols(session):
+    data = await fetch_json(session, f"{BINANCE_BASE}/api/v3/exchangeInfo")
+    if not data:
+        return []
+    symbols = []
+    for s in data.get("symbols", []):
+        if (s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+                and s["isSpotTradingAllowed"]):
+            symbols.append({
+                "symbol": s["symbol"],
+                "base": s["baseAsset"]
+            })
+    return symbols
+
+
+async def fetch_klines(session, symbol, interval, limit=500):
+    data = await fetch_json(
+        session,
+        f"{BINANCE_BASE}/api/v3/klines",
+        params={"symbol": symbol, "interval": interval, "limit": limit}
+    )
+    return data or []
+
+
+async def collect_candles(session, symbols, timeframe, limit=None):
+    if limit is None:
+        limit = KLINE_LIMITS.get(timeframe, 500)
+    batch_size = 10
+    for i in range(0, len(symbols), batch_size):
+        batch = symbols[i:i + batch_size]
+        tasks = [fetch_klines(session, s, timeframe, limit) for s in batch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for sym, result in zip(batch, results):
+            if isinstance(result, list) and result:
+                db.save_candles(sym, timeframe, result)
+        await asyncio.sleep(0.5)
+    log.info(f"Collected {timeframe} candles for {len(symbols)} symbols")
+
+
+async def fetch_coingecko_market_data(session, page=1, per_page=250):
+    data = await fetch_json(
+        session,
+        f"{COINGECKO_BASE}/coins/markets",
+        params={
+            "vs_currency": "usd",
+            "order": "market_cap_desc",
+            "per_page": per_page,
+            "page": page,
+            "sparkline": "false"
+        }
+    )
+    return data or []
+
+
+async def collect_coingecko_rankings(session):
+    all_coins = []
+    for page in range(1, 4):
+        data = await fetch_coingecko_market_data(session, page=page)
+        all_coins.extend(data)
+        await asyncio.sleep(1.5)
+
+    symbol_map = {}
+    for i, coin in enumerate(all_coins, 1):
+        sym = coin.get("symbol", "").upper()
+        symbol_map[sym] = {
+            "rank": i,
+            "market_cap": coin.get("market_cap", 0),
+        }
+    return symbol_map
+
+
+def determine_mcap_group(rank):
+    if rank <= 50:
+        return "top50"
+    elif rank <= 100:
+        return "51-100"
+    elif rank <= 200:
+        return "101-200"
+    return "200+"
+
+
+def determine_sector(base_asset):
+    for sector, coins in SECTORS.items():
+        if base_asset in coins:
+            return sector
+    return "Diger"
+
+
+async def fetch_btc_dominance(session):
+    data = await fetch_json(session, f"{COINGECKO_BASE}/global")
+    if data and "data" in data:
+        return data["data"].get("market_cap_percentage", {}).get("btc", 0)
+    return 0
+
+
+async def fetch_total_market_volume(session):
+    data = await fetch_json(session, f"{COINGECKO_BASE}/global")
+    if data and "data" in data:
+        return data["data"].get("total_volume", {}).get("usd", 0)
+    return 0
+
+
+async def fetch_fear_greed(session):
+    data = await fetch_json(session, FEAR_GREED_URL)
+    if data and "data" in data and data["data"]:
+        entry = data["data"][0]
+        return {
+            "value": int(entry.get("value", 50)),
+            "label": entry.get("value_classification", "Neutral")
+        }
+    return {"value": 50, "label": "Neutral"}
+
+
+async def fetch_btc_price(session):
+    data = await fetch_json(
+        session,
+        f"{BINANCE_BASE}/api/v3/ticker/price",
+        params={"symbol": "BTCUSDT"}
+    )
+    if data:
+        return float(data.get("price", 0))
+    return 0
+
+
+async def initial_data_load(session):
+    log.info("Starting initial data load...")
+
+    symbols_info = await get_all_usdt_symbols(session)
+    symbols = [s["symbol"] for s in symbols_info]
+    log.info(f"Found {len(symbols)} USDT pairs")
+
+    for s in symbols_info:
+        db.save_coin(s["symbol"], s["base"])
+
+    cg_rankings = await collect_coingecko_rankings(session)
+    for s in symbols_info:
+        base = s["base"]
+        if base in cg_rankings:
+            rank = cg_rankings[base]["rank"]
+            db.save_coin(
+                s["symbol"], s["base"],
+                mcap_rank=rank,
+                mcap_group=determine_mcap_group(rank),
+                sector=determine_sector(base)
+            )
+        else:
+            db.save_coin(
+                s["symbol"], s["base"],
+                mcap_group="200+",
+                sector=determine_sector(base)
+            )
+
+    for tf in TIMEFRAMES:
+        log.info(f"Collecting {tf} candles...")
+        await collect_candles(session, symbols, tf)
+        await asyncio.sleep(1)
+
+    log.info("Initial data load complete")
+    return symbols
+
+
+async def update_candles(session, symbols, timeframe, limit=50):
+    await collect_candles(session, symbols, timeframe, limit)
+
+
+async def update_coingecko(session):
+    cg_rankings = await collect_coingecko_rankings(session)
+    coins = db.get_all_coins()
+    for coin in coins:
+        base = coin["base_asset"]
+        if base in cg_rankings:
+            rank = cg_rankings[base]["rank"]
+            db.save_coin(
+                coin["symbol"], base,
+                mcap_rank=rank,
+                mcap_group=determine_mcap_group(rank)
+            )

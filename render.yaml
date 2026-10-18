@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: kripto-arastirma-bot
+    runtime: docker
+    plan: free
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MY_CHAT_ID
+        sync: false
