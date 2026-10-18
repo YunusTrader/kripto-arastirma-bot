@@ -49,7 +49,7 @@ class DictConnection:
         return DictCursor(cur)
 
     def executemany(self, sql, params):
-        return self._conn.executemany(sql, params)
+        return self._conn.executemany(sql, [tuple(p) for p in params])
 
     def commit(self):
         self._conn.commit()
