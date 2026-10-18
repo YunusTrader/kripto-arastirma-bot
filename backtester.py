@@ -58,12 +58,18 @@ def analyze_pump_preconditions(candles, pump_index, timeframe):
 
     results = {}
     for label, bars in lookback_bars.items():
-        start = max(0, pump_index - bars)
-        pre_candles = candles[start:pump_index]
+        if pump_index < 5:
+            continue
+        # Use enough candles for indicators (min 30) ending at pump_index
+        indicator_start = max(0, pump_index - max(bars, 60))
+        pre_candles = candles[indicator_start:pump_index]
         if len(pre_candles) < 5:
             continue
         snapshot = get_indicator_snapshot(pre_candles)
-        signals = detect_signals(pre_candles)
+        # Signals use only the lookback window
+        signal_start = max(0, pump_index - bars)
+        signal_candles = candles[signal_start:pump_index]
+        signals = detect_signals(signal_candles) if len(signal_candles) >= 5 else {}
         results[label] = {
             "snapshot": snapshot,
             "signals": list(signals.keys()),
