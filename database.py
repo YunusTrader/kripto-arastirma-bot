@@ -54,10 +54,18 @@ class DictConnection:
 
     def commit(self):
         self._conn.commit()
+        if hasattr(self._conn, 'sync'):
+            try:
+                self._conn.sync()
+            except Exception:
+                pass
 
     def sync(self):
         if hasattr(self._conn, 'sync'):
             self._conn.sync()
+
+
+log = logging.getLogger(__name__)
 
 
 def get_conn():
@@ -71,10 +79,17 @@ def get_conn():
             sync_url=TURSO_DB_URL,
             auth_token=TURSO_AUTH_TOKEN
         )
-        try:
-            raw.sync()
-        except Exception as e:
-            logging.getLogger(__name__).warning(f"Initial Turso sync failed (will retry later): {e}")
+        import time
+        for attempt in range(5):
+            try:
+                raw.sync()
+                log.info("Turso sync successful")
+                break
+            except Exception as e:
+                log.warning(f"Turso sync attempt {attempt+1}/5 failed: {e}")
+                time.sleep(2 ** attempt)
+        else:
+            log.error("All Turso sync attempts failed — starting with empty local DB")
     else:
         import sqlite3
         raw = sqlite3.connect(DB_PATH)
@@ -90,7 +105,7 @@ def sync_db():
         try:
             _conn.sync()
         except Exception as e:
-            logging.getLogger(__name__).warning(f"Turso sync failed: {e}")
+            log.warning(f"Turso sync failed: {e}")
 
 
 def init_db():
