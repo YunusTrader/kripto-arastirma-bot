@@ -282,9 +282,10 @@ def save_coin(symbol, base_asset, **kwargs):
     conn = get_conn()
     existing = conn.execute("SELECT * FROM coins WHERE symbol=?", (symbol,)).fetchone()
     if existing:
-        sets = ", ".join(f"{k}=?" for k in kwargs)
-        vals = list(kwargs.values()) + [symbol]
-        conn.execute(f"UPDATE coins SET {sets} WHERE symbol=?", vals)
+        if kwargs:
+            sets = ", ".join(f"{k}=?" for k in kwargs)
+            vals = list(kwargs.values()) + [symbol]
+            conn.execute(f"UPDATE coins SET {sets} WHERE symbol=?", vals)
     else:
         conn.execute(
             "INSERT INTO coins (symbol, base_asset) VALUES (?,?)",
