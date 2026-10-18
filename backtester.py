@@ -180,7 +180,10 @@ def run_backtest_for_symbol(symbol, coin_info):
                 "pre_accumulation": 1 if "accumulation" in sigs else 0,
                 "indicators_json": json.dumps(pre),
             }
-            db.save_pump(pump_record)
+            cols = ", ".join(pump_record.keys())
+            placeholders = ", ".join(["?"] * len(pump_record))
+            conn = db.get_conn()
+            conn.execute(f"INSERT INTO pumps ({cols}) VALUES ({placeholders})", list(pump_record.values()))
 
     return results
 
@@ -191,18 +194,34 @@ def run_full_backtest():
     regime = db.get_latest_regime()
     regime_dict = dict(regime) if regime else {}
 
+    conn = db.get_conn()
     total_signals = 0
+    batch_count = 0
     for coin in coins:
         if coin["symbol"] == "BTCUSDT":
             continue
-        coin_info = dict(coin)
-        coin_info.update(regime_dict)
-        signals = run_backtest_for_symbol(coin["symbol"], coin_info)
-        for sig in signals:
-            db.save_signal(sig)
-        total_signals += len(signals)
+        try:
+            coin_info = dict(coin)
+            coin_info.update(regime_dict)
+            signals = run_backtest_for_symbol(coin["symbol"], coin_info)
+            for sig in signals:
+                cols = ", ".join(sig.keys())
+                placeholders = ", ".join(["?"] * len(sig))
+                conn.execute(
+                    f"INSERT INTO method_signals ({cols}) VALUES ({placeholders})",
+                    list(sig.values())
+                )
+            total_signals += len(signals)
+            batch_count += 1
+            if batch_count % 50 == 0:
+                conn.commit()
+                log.info(f"Backtest progress: {batch_count} coins, {total_signals} signals")
+        except Exception as e:
+            log.error(f"Backtest error for {coin['symbol']}: {e}")
+            continue
 
-    log.info(f"Backtest complete: {total_signals} signals recorded")
+    conn.commit()
+    log.info(f"Backtest complete: {total_signals} signals from {batch_count} coins")
     calculate_all_scores()
     return total_signals
 
@@ -229,6 +248,7 @@ def calculate_all_scores():
                     if val:
                         _calc_score(conn, method, timeframe, dimension, val)
 
+    conn.commit()
     log.info("Score calculation complete")
 
 
@@ -276,4 +296,12 @@ def _calc_score(conn, method, timeframe, dimension, dim_value):
         "max_drawdown": round(row[10] or 0, 2),
         "last_updated": datetime.utcnow().isoformat(),
     }
-    db.save_score(score)
+    cols = ", ".join(score.keys())
+    placeholders = ", ".join(["?"] * len(score))
+    updates = ", ".join(f"{k}=excluded.{k}" for k in score if k not in
+                        ("method_name", "timeframe", "dimension", "dimension_value"))
+    conn.execute(
+        f"INSERT INTO method_scores ({cols}) VALUES ({placeholders}) "
+        f"ON CONFLICT(method_name, timeframe, dimension, dimension_value) DO UPDATE SET {updates}",
+        list(score.values())
+    )
