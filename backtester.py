@@ -216,6 +216,11 @@ def run_full_backtest():
             if batch_count % 50 == 0:
                 conn.commit()
                 log.info(f"Backtest progress: {batch_count} coins, {total_signals} signals")
+                try:
+                    calculate_all_scores()
+                    log.info(f"Interim scores calculated at {batch_count} coins")
+                except Exception as e:
+                    log.error(f"Interim score error: {e}")
         except Exception as e:
             log.error(f"Backtest error for {coin['symbol']}: {e}")
             continue
