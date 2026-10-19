@@ -177,17 +177,18 @@ async def background_init(sess):
     except Exception as e:
         log.error(f"Clear error: {e}")
 
-    log.info("Running initial backtest...")
+    log.info("Running initial backtest (this may take 30+ minutes)...")
     try:
-        await loop.run_in_executor(None, run_full_backtest)
+        result = await loop.run_in_executor(None, run_full_backtest)
+        log.info(f"Backtest finished: {result} signals")
     except Exception as e:
-        log.error(f"Backtest error: {e}")
+        log.error(f"Backtest error: {e}", exc_info=True)
 
     log.info("Running advanced analytics...")
     try:
         await loop.run_in_executor(None, run_all_advanced_analytics)
     except Exception as e:
-        log.error(f"Advanced analytics error: {e}")
+        log.error(f"Advanced analytics error: {e}", exc_info=True)
 
     log.info("Starting scheduler...")
     setup_scheduler()

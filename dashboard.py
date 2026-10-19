@@ -246,6 +246,28 @@ def api_lf_summary():
     return jsonify(rows_to_list(rows))
 
 
+@dashboard_bp.route("/api/backtest-progress")
+def api_backtest_progress():
+    conn = db.get_conn()
+    total_coins = conn.execute("SELECT COUNT(*) as cnt FROM coins").fetchone()["cnt"]
+    signals = conn.execute("SELECT COUNT(*) as cnt FROM method_signals").fetchone()["cnt"]
+    scores = conn.execute("SELECT COUNT(*) as cnt FROM method_scores").fetchone()["cnt"]
+    pumps = conn.execute("SELECT COUNT(*) as cnt FROM pumps").fetchone()["cnt"]
+    pump_scores = conn.execute("SELECT COUNT(*) as cnt FROM pump_condition_scores").fetchone()["cnt"]
+    coins_with_signals = conn.execute(
+        "SELECT COUNT(DISTINCT symbol) as cnt FROM method_signals"
+    ).fetchone()["cnt"]
+    return jsonify({
+        "total_coins": total_coins,
+        "coins_with_signals": coins_with_signals,
+        "pct_done": round(coins_with_signals / max(total_coins, 1) * 100, 1),
+        "signals": signals,
+        "scores": scores,
+        "pumps": pumps,
+        "pump_condition_scores": pump_scores,
+    })
+
+
 @dashboard_bp.route("/api/init-progress")
 def api_init_progress():
     import main as m

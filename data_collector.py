@@ -71,6 +71,8 @@ async def collect_candles(session, symbols, timeframe, limit=None):
     if limit is None:
         limit = KLINE_LIMITS.get(timeframe, 500)
     batch_size = 5
+    collected = 0
+    errors = 0
     for i in range(0, len(symbols), batch_size):
         batch = symbols[i:i + batch_size]
         tasks = [fetch_klines(session, s, timeframe, limit) for s in batch]
@@ -78,8 +80,13 @@ async def collect_candles(session, symbols, timeframe, limit=None):
         for sym, result in zip(batch, results):
             if isinstance(result, list) and result:
                 db.save_candles(sym, timeframe, result)
+                collected += 1
+            elif isinstance(result, Exception):
+                errors += 1
+        if (i // batch_size) % 20 == 0:
+            log.info(f"Candle progress {timeframe}: {i + len(batch)}/{len(symbols)} coins ({collected} ok, {errors} err)")
         await asyncio.sleep(2)
-    log.info(f"Collected {timeframe} candles for {len(symbols)} symbols")
+    log.info(f"Collected {timeframe} candles: {collected}/{len(symbols)} ok, {errors} errors")
 
 
 async def fetch_coingecko_market_data(session, page=1, per_page=250):
