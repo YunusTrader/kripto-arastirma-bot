@@ -353,11 +353,12 @@ async function loadCoins() {
 async function loadSectors() {
   const data = await api('/api/sectors');
   if (!data) return;
-  const methods = ['macd', 'ema_20_50', 'bb_squeeze', 'volume_spike', 'multi_signal'];
+  const methods = ['macd', 'ema_20_50', 'bb_squeeze', 'volume_spike', 'multi_signal', 'rsi_divergence', 'obv_trend', 'stoch_rsi'];
   const sectors = Object.keys(data);
 
-  let html = '<div style="overflow-x:auto"><table class="dt" style="min-width:550px"><thead><tr><th></th>';
-  methods.forEach(m => html += `<th>${m.replace('_', ' ')}</th>`);
+  let html = '<div style="overflow-x:auto"><table class="dt" style="min-width:750px"><thead><tr><th></th>';
+  const shortNames = {macd:'MACD', ema_20_50:'EMA', bb_squeeze:'BB', volume_spike:'Hacim', multi_signal:'Multi', rsi_divergence:'RSI Div', obv_trend:'OBV', stoch_rsi:'StochRSI'};
+  methods.forEach(m => html += `<th>${shortNames[m]||m}</th>`);
   html += '</tr></thead><tbody>';
   for (const s of sectors) {
     html += `<tr><td style="font-weight:600">${s}</td>`;
@@ -377,18 +378,20 @@ async function loadSectors() {
   $('#sector-heatmap').innerHTML = html;
 
   // Radar
+  const radarMethods = ['bb_squeeze', 'multi_signal', 'rsi_divergence', 'obv_trend', 'stoch_rsi'];
+  const radarColors = [C.accent, C.green, C.yellow, C.red, '#a371f7'];
   const radarData = {};
-  for (const m of ['bb_squeeze', 'multi_signal']) {
+  for (const m of radarMethods) {
     radarData[m] = sectors.map(s => data[s]?.[m] || 0);
   }
+  const radarLabels = {bb_squeeze:'BB Squeeze', multi_signal:'Multi Signal', rsi_divergence:'RSI Div', obv_trend:'OBV', stoch_rsi:'StochRSI'};
   new Chart($('#chart-radar'), {
     type: 'radar',
     data: {
       labels: sectors,
-      datasets: [
-        { label: 'BB Squeeze', data: radarData['bb_squeeze'], borderColor: C.accent, backgroundColor: C.accent + '22', pointBackgroundColor: C.accent },
-        { label: 'Multi Signal', data: radarData['multi_signal'], borderColor: C.green, backgroundColor: C.green + '22', pointBackgroundColor: C.green },
-      ]
+      datasets: radarMethods.map((m, i) => ({
+        label: radarLabels[m], data: radarData[m], borderColor: radarColors[i], backgroundColor: radarColors[i] + '22', pointBackgroundColor: radarColors[i]
+      }))
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -475,8 +478,8 @@ async function loadMcap() {
   const data = await api('/api/mcap-scores');
   if (!data) return;
   const groups = Object.keys(data);
-  const methods = ['ema_20_50', 'bb_squeeze', 'multi_signal', 'volume_spike'];
-  const colors = [C.accent + '99', C.green + '99', C.yellow + '99', C.red + '99'];
+  const methods = ['ema_20_50', 'bb_squeeze', 'multi_signal', 'volume_spike', 'rsi_divergence', 'obv_trend', 'stoch_rsi'];
+  const colors = [C.accent + '99', C.green + '99', C.yellow + '99', C.red + '99', '#a371f799', '#f0883e99', '#bc8cff99'];
 
   new Chart($('#chart-mcap'), {
     type: 'bar',
