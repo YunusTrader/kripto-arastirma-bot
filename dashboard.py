@@ -277,6 +277,18 @@ def api_status():
     })
 
 
+@dashboard_bp.route("/api/recalc-scores", methods=["POST"])
+def api_recalc_scores():
+    from backtester import calculate_all_scores
+    try:
+        calculate_all_scores()
+        conn = db.get_conn()
+        count = conn.execute("SELECT COUNT(*) as cnt FROM method_scores").fetchone()["cnt"]
+        return jsonify({"status": "ok", "scores_calculated": count})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @dashboard_bp.route("/api/reset-backtest", methods=["POST"])
 def api_reset_backtest():
     conn = db.get_conn()
