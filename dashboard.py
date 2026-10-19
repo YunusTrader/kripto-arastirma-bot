@@ -89,7 +89,8 @@ def api_pump_stats():
 
 @dashboard_bp.route("/api/sectors")
 def api_sectors():
-    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
+    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal",
+               "rsi_divergence", "obv_trend", "stoch_rsi"]
     sectors = ["L1", "L2", "DeFi", "AI", "Meme", "Gaming"]
     result = {}
     for sector in sectors:
@@ -105,7 +106,8 @@ def api_sectors():
 
 @dashboard_bp.route("/api/mcap-scores")
 def api_mcap_scores():
-    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
+    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal",
+               "rsi_divergence", "obv_trend", "stoch_rsi"]
     groups = ["top50", "51-100", "101-200", "200+"]
     result = {}
     for group in groups:
@@ -277,14 +279,35 @@ def api_status():
     })
 
 
+@dashboard_bp.route("/api/pump-condition-scores")
+def api_pump_condition_scores():
+    from flask import request
+    conn = db.get_conn()
+    tf = request.args.get("timeframe")
+    dim = request.args.get("dimension")
+    sql = "SELECT * FROM pump_condition_scores WHERE 1=1"
+    params = []
+    if tf:
+        sql += " AND timeframe=?"
+        params.append(tf)
+    if dim:
+        sql += " AND dimension=?"
+        params.append(dim)
+    sql += " ORDER BY pump_probability DESC"
+    rows = conn.execute(sql, params).fetchall()
+    return jsonify(rows_to_list(rows))
+
+
 @dashboard_bp.route("/api/recalc-scores", methods=["POST"])
 def api_recalc_scores():
-    from backtester import calculate_all_scores
+    from backtester import calculate_all_scores, calculate_pump_condition_scores
     try:
         calculate_all_scores()
+        calculate_pump_condition_scores()
         conn = db.get_conn()
         count = conn.execute("SELECT COUNT(*) as cnt FROM method_scores").fetchone()["cnt"]
-        return jsonify({"status": "ok", "scores_calculated": count})
+        pump_count = conn.execute("SELECT COUNT(*) as cnt FROM pump_condition_scores").fetchone()["cnt"]
+        return jsonify({"status": "ok", "scores_calculated": count, "pump_scores": pump_count})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

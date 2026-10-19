@@ -184,9 +184,51 @@ def detect_signals(candles):
                             "value": round(whale_ratio, 1)
                         }
 
+    # RSI Divergence
+    rsi_vals = rsi(closes)
+    if len(rsi_vals) >= 10 and len(closes) >= 10:
+        price_recent_low = min(closes[-5:])
+        price_prev_low = min(closes[-10:-5])
+        rsi_offset = len(closes) - len(rsi_vals)
+        rsi_recent = rsi_vals[-(5 - rsi_offset):] if rsi_offset < 5 else rsi_vals[-5:]
+        rsi_prev = rsi_vals[-(10 - rsi_offset):-(5 - rsi_offset)] if rsi_offset < 5 else rsi_vals[-10:-5]
+        if rsi_recent and rsi_prev:
+            rsi_recent_low = min(rsi_recent)
+            rsi_prev_low = min(rsi_prev)
+            if price_recent_low < price_prev_low and rsi_recent_low > rsi_prev_low:
+                signals["rsi_divergence"] = {"type": "bullish_divergence", "value": round(rsi_recent_low, 1)}
+
+    # OBV Trend
+    if len(closes) >= 21 and len(volumes) >= 21:
+        obv = [0]
+        for i in range(1, len(closes)):
+            if closes[i] > closes[i-1]:
+                obv.append(obv[-1] + volumes[i])
+            elif closes[i] < closes[i-1]:
+                obv.append(obv[-1] - volumes[i])
+            else:
+                obv.append(obv[-1])
+        obv_ema5 = ema(obv[-20:], 5)
+        obv_ema13 = ema(obv[-20:], 13)
+        if len(obv_ema5) >= 2 and len(obv_ema13) >= 2:
+            if obv_ema5[-1] > obv_ema13[-1] and obv_ema5[-2] <= obv_ema13[-2]:
+                signals["obv_trend"] = {"type": "bullish_cross", "value": round(obv[-1], 2)}
+
+    # Stochastic RSI
+    if len(rsi_vals) >= 14:
+        stoch_window = rsi_vals[-14:]
+        rsi_min = min(stoch_window)
+        rsi_max = max(stoch_window)
+        if rsi_max - rsi_min > 0:
+            stoch_k = (rsi_vals[-1] - rsi_min) / (rsi_max - rsi_min) * 100
+            stoch_k_prev = (rsi_vals[-2] - rsi_min) / (rsi_max - rsi_min) * 100
+            if stoch_k > 20 and stoch_k_prev <= 20:
+                signals["stoch_rsi"] = {"type": "oversold_exit", "value": round(stoch_k, 1)}
+
     # Multi-timeframe alignment count
     bullish_count = sum(1 for s in signals.values() if s["type"] in
-                        ("bullish_cross", "golden_cross", "squeeze", "spike", "accumulation", "large_trades"))
+                        ("bullish_cross", "golden_cross", "squeeze", "spike", "accumulation",
+                         "large_trades", "bullish_divergence", "oversold_exit"))
     if bullish_count >= 3:
         signals["multi_signal"] = {"type": "strong_alignment", "value": bullish_count}
 

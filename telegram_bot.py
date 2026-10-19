@@ -19,6 +19,20 @@ if MY_CHAT_ID:
 else:
     log.warning("MY_CHAT_ID not set! Bot won't send broadcast messages until user sends /start")
 
+METHOD_MAP = {
+    "ema": "ema_20_50", "macd": "macd",
+    "bb": "bb_squeeze", "bollinger": "bb_squeeze",
+    "hacim": "volume_spike", "volume": "volume_spike",
+    "birikim": "accumulation", "accumulation": "accumulation",
+    "multi": "multi_signal", "coklu": "multi_signal",
+    "rsi": "rsi_divergence", "rsi_div": "rsi_divergence", "rsi_divergence": "rsi_divergence",
+    "obv": "obv_trend", "obv_trend": "obv_trend",
+    "stoch": "stoch_rsi", "stoch_rsi": "stoch_rsi", "stochrsi": "stoch_rsi",
+    "whale": "whale_activity", "balina": "whale_activity",
+}
+
+_last_regime = {"btc_trend": None, "dominance_trend": None}
+
 
 async def safe_send(chat_id, text, parse_mode="Markdown"):
     try:
@@ -213,7 +227,7 @@ async def cmd_coin(m: types.Message):
         icon = "✅" if s["win_rate_7d"] >= 60 else ("⚠️" if s["win_rate_7d"] >= 45 else "❌")
         text += f"  {icon} `{method_name:15s}` %{s['win_rate_7d']:.0f} basari (ort: %{s['avg_return_7d']:+.1f})\n"
 
-    # Composite score
+    # Composite score + pump probability
     candles_4h = db.get_candles(symbol, "4h", 250)
     if candles_4h:
         candles_list = [dict(c) for c in reversed(candles_4h)]
@@ -224,6 +238,14 @@ async def cmd_coin(m: types.Message):
             text += f"\n*Toplam arastirma skoru: `{composite:.0f}/100`*\n"
             text += f"({len(active_methods)} yontem aktif: {', '.join(active_methods)})\n"
 
+        # Pump probability from pump_condition_scores
+        pump_probs = _get_pump_probabilities(signals.keys(), coin)
+        if pump_probs:
+            text += "\n*Pump olasiliklari:*\n"
+            for cond, prob, total in pump_probs[:5]:
+                icon = "🔥" if prob >= 40 else ("⚡" if prob >= 25 else "")
+                text += f"  `{cond}`: %{prob:.1f} ({total} orneklem) {icon}\n"
+
     await safe_send(m.chat.id, text)
 
 
@@ -231,18 +253,11 @@ async def cmd_coin(m: types.Message):
 async def cmd_method(m: types.Message):
     parts = m.text.strip().split()
     if len(parts) < 2:
-        await m.answer("Kullanim: /yontem EMA\n\nYontemler: macd, ema\\_20\\_50, ema\\_50\\_200, bb\\_squeeze, bb\\_breakout, volume\\_spike, accumulation, multi\\_signal")
+        await m.answer("Kullanim: /yontem EMA\n\nYontemler: macd, ema, bb, hacim, birikim, multi, rsi, obv, stoch, whale")
         return
 
     method = parts[1].lower()
-    method_map = {
-        "ema": "ema_20_50", "macd": "macd",
-        "bb": "bb_squeeze", "bollinger": "bb_squeeze",
-        "hacim": "volume_spike", "volume": "volume_spike",
-        "birikim": "accumulation", "accumulation": "accumulation",
-        "multi": "multi_signal", "coklu": "multi_signal",
-    }
-    method_name = method_map.get(method, method)
+    method_name = METHOD_MAP.get(method, method)
 
     text = f"*{method_name} Performans Raporu*\n━━━━━━━━━━━━━━━━━━━━\n"
 
@@ -358,15 +373,8 @@ async def cmd_compare(m: types.Message):
         await m.answer("Kullanim: /karsilastir MACD EMA")
         return
 
-    method_map = {
-        "ema": "ema_20_50", "macd": "macd",
-        "bb": "bb_squeeze", "bollinger": "bb_squeeze",
-        "hacim": "volume_spike", "volume": "volume_spike",
-        "birikim": "accumulation", "multi": "multi_signal",
-    }
-
-    m1 = method_map.get(parts[1].lower(), parts[1].lower())
-    m2 = method_map.get(parts[2].lower(), parts[2].lower())
+    m1 = METHOD_MAP.get(parts[1].lower(), parts[1].lower())
+    m2 = METHOD_MAP.get(parts[2].lower(), parts[2].lower())
 
     text = f"*{m1} vs {m2} Karsilastirma*\n━━━━━━━━━━━━━━━━━━━━\n"
 
@@ -393,6 +401,171 @@ async def cmd_compare(m: types.Message):
             text += f"  `{val:12s}` {wr1:>5s}{winner if winner == ' ◀' else ''} | {wr2:>5s}{winner if winner == ' ▶' else ''}\n"
 
     await safe_send(m.chat.id, text)
+
+
+def _get_pump_probabilities(active_conditions, coin):
+    conn = db.get_conn()
+    results = []
+    mcap = coin.get("mcap_group", "all")
+    sector = coin.get("sector", "all")
+    for cond in active_conditions:
+        if cond == "multi_signal":
+            continue
+        for dim, dim_val in [("mcap_group", mcap), ("sector", sector), ("overall", "all")]:
+            row = conn.execute(
+                "SELECT pump_probability, total_occurrences FROM pump_condition_scores "
+                "WHERE condition=? AND dimension=? AND dimension_value=? "
+                "ORDER BY pump_probability DESC LIMIT 1",
+                (cond, dim, dim_val)
+            ).fetchone()
+            if row and row["total_occurrences"] >= 10:
+                label = f"{cond}" if dim == "overall" else f"{cond} ({dim_val})"
+                results.append((label, row["pump_probability"], row["total_occurrences"]))
+                break
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results
+
+
+async def check_and_notify_signals():
+    conn = db.get_conn()
+    coins = db.get_all_coins()
+    r = get_current_regime()
+
+    for coin in coins[:100]:
+        coin = dict(coin)
+        symbol = coin["symbol"]
+        for tf in ["1h", "4h"]:
+            candles_raw = db.get_candles(symbol, tf, 250)
+            if not candles_raw or len(candles_raw) < 60:
+                continue
+            candles = [dict(c) for c in reversed(candles_raw)]
+            signals = detect_signals(candles)
+
+            bullish = [k for k, v in signals.items()
+                       if v["type"] in ("bullish_cross", "golden_cross", "squeeze",
+                                        "spike", "accumulation", "large_trades",
+                                        "bullish_divergence", "oversold_exit")]
+            if len(bullish) < 3:
+                continue
+
+            pump_probs = _get_pump_probabilities(signals.keys(), coin)
+            top_prob = pump_probs[0][1] if pump_probs else 0
+
+            base = symbol.replace("USDT", "")
+            text = (
+                f"🔔 *Yeni Sinyal: {base}*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"Timeframe: {tf}\n\n"
+                f"*Aktif kosullar:*\n"
+            )
+            for k in bullish:
+                val = signals[k].get("value", "")
+                text += f"  ✅ {k} ({val})\n"
+
+            if pump_probs:
+                text += "\n*Pump olasiliklari:*\n"
+                for cond, prob, total in pump_probs[:3]:
+                    icon = "🔥" if prob >= 40 else ""
+                    text += f"  {cond}: `%{prob:.1f}` {icon}\n"
+
+            scores = db.get_scores(dimension="btc_trend", dimension_value=r["btc_trend"])
+            method_win = {s["method_name"]: s for s in scores}
+            active_with_scores = [m for m in bullish if m in method_win]
+            if active_with_scores:
+                text += f"\n*Gecmis basari (rejim: {r['btc_trend']}):*\n"
+                for m in active_with_scores[:3]:
+                    s = method_win[m]
+                    text += f"  {m}: %{s['win_rate_7d']:.0f} win ({s['total_signals']} sinyal)\n"
+
+            composite = 0
+            if active_with_scores:
+                composite = sum(method_win[m]["win_rate_7d"] for m in active_with_scores) / len(active_with_scores)
+            text += f"\nSkor: `{composite:.0f}/100` | MCap: {coin.get('mcap_group','?')} | Sektor: {coin.get('sector','?')}\n"
+            text += f"/coin {base} ile detay"
+
+            await broadcast(text)
+            await asyncio.sleep(0.5)
+
+
+async def check_and_notify_pumps():
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT * FROM pumps WHERE pump_time > datetime('now', '-2 hours') "
+        "ORDER BY pump_pct DESC LIMIT 5"
+    ).fetchall()
+
+    for pump in rows:
+        pump = dict(pump)
+        already = conn.execute(
+            "SELECT 1 FROM pump_notifications WHERE symbol=? AND pump_time=?",
+            (pump["symbol"], pump["pump_time"])
+        ).fetchone()
+        if already:
+            continue
+
+        base = pump["symbol"].replace("USDT", "")
+        text = (
+            f"🚀 *PUMP TESPIT: {base} +{pump['pump_pct']:.0f}%*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Timeframe: {pump['timeframe']}\n\n"
+            f"*Pump oncesi aktif kosullar:*\n"
+        )
+        if pump.get("pre_bb_squeeze"):
+            text += "  ✅ BB Sikisma\n"
+        if pump.get("pre_volume_ratio") and pump["pre_volume_ratio"] >= 2:
+            text += f"  ✅ Volume Spike ({pump['pre_volume_ratio']:.1f}x)\n"
+        if pump.get("pre_accumulation"):
+            text += "  ✅ Accumulation\n"
+
+        text += f"\n/coin {base} ile detay"
+        await broadcast(text)
+
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO pump_notifications (symbol, pump_time) VALUES (?, ?)",
+                (pump["symbol"], pump["pump_time"])
+            )
+            conn.commit()
+        except Exception:
+            pass
+
+
+async def check_and_notify_regime_change():
+    global _last_regime
+    r = get_current_regime()
+    changed = False
+
+    if _last_regime["btc_trend"] and r["btc_trend"] != _last_regime["btc_trend"]:
+        changed = True
+    if _last_regime["dominance_trend"] and r["dominance_trend"] != _last_regime["dominance_trend"]:
+        changed = True
+
+    old_trend = _last_regime["btc_trend"]
+    _last_regime["btc_trend"] = r["btc_trend"]
+    _last_regime["dominance_trend"] = r["dominance_trend"]
+
+    if not changed:
+        return
+
+    text = (
+        f"⚠️ *Rejim Degisikligi*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"BTC Trend: `{old_trend}` → `{r['btc_trend']}`\n"
+        f"BTC: `${r.get('btc_price', 0):,.0f}`\n"
+        f"Korku/Acgozluluk: `{r.get('fear_greed_value', 50)}` — `{r.get('fear_greed_label', 'notr')}`\n\n"
+    )
+
+    scores = db.get_scores(dimension="btc_trend", dimension_value=r["btc_trend"])
+    if scores:
+        text += "*Bu rejimde en iyi yontemler:*\n"
+        seen = set()
+        for s in scores[:5]:
+            if s["method_name"] in seen:
+                continue
+            seen.add(s["method_name"])
+            text += f"  {s['method_name']}: %{s['win_rate_7d']:.0f}\n"
+
+    await broadcast(text)
 
 
 def build_daily_report():

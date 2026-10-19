@@ -114,6 +114,7 @@ footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);borde
   <button class="tab" data-tab="coins">Öne Çıkan Coinler</button>
   <button class="tab" data-tab="sectors">Sektör Analizi</button>
   <button class="tab" data-tab="pumps">Pump Anatomisi</button>
+  <button class="tab" data-tab="pump-scores">Pump Olasılık</button>
   <button class="tab" data-tab="mcap">Market Cap</button>
   <button class="tab" data-tab="whales">Whale Takip</button>
   <button class="tab" data-tab="corr">Korelasyon</button>
@@ -142,6 +143,21 @@ footer{text-align:center;padding:24px 0;font-size:11px;color:var(--fg-dim);borde
   <div class="grid-2">
     <div class="card"><h3>Son Tespit Edilen Pump'lar</h3><div id="pumps-list" class="loading">Veriler yükleniyor</div></div>
     <div class="card"><h3>Pump Öncesi Koşullar</h3><div class="chart-wrap"><canvas id="chart-pump"></canvas></div><div id="pump-total" style="margin-top:12px;font-size:12px;color:var(--fg-dim)"></div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-pump-scores">
+  <div class="card">
+    <h3>Pump Olasılık Skorları <span style="color:var(--fg-dim);font-size:12px">(Koşul aktifken pump olma %'si)</span></h3>
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <select id="pump-score-tf" style="background:var(--surface-2);color:var(--fg);border:1px solid var(--border);padding:4px 8px;border-radius:4px">
+        <option value="">Tüm TF</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option>
+      </select>
+      <select id="pump-score-dim" style="background:var(--surface-2);color:var(--fg);border:1px solid var(--border);padding:4px 8px;border-radius:4px">
+        <option value="">Tüm Boyutlar</option><option value="overall">Genel</option><option value="mcap_group">Market Cap</option><option value="sector">Sektör</option><option value="btc_trend">BTC Trend</option>
+      </select>
+    </div>
+    <div id="pump-scores-table" class="loading">Veriler yükleniyor</div>
   </div>
 </div>
 
@@ -431,6 +447,30 @@ async function loadPumps() {
   }
 }
 
+async function loadPumpScores() {
+  const tf = $('#pump-score-tf').value;
+  const dim = $('#pump-score-dim').value;
+  let url = '/api/pump-condition-scores?';
+  if (tf) url += 'timeframe=' + tf + '&';
+  if (dim) url += 'dimension=' + dim;
+  const data = await api(url);
+  const el = $('#pump-scores-table');
+  if (!data || !data.length) { el.innerHTML = '<p style="color:var(--fg-dim)">Henüz pump olasılık skoru yok.</p>'; return; }
+  let html = '<table style="width:100%;border-collapse:collapse"><thead><tr>';
+  html += '<th>Koşul</th><th>TF</th><th>Boyut</th><th>Değer</th><th>Toplam</th><th>Pump</th><th>Olasılık</th><th>Ort. Pump%</th>';
+  html += '</tr></thead><tbody>';
+  for (const r of data) {
+    const probColor = r.pump_probability >= 30 ? 'var(--green)' : r.pump_probability >= 15 ? 'var(--yellow)' : 'var(--fg-dim)';
+    html += `<tr>
+      <td>${r.condition}</td><td>${r.timeframe}</td><td>${r.dimension}</td><td>${r.dimension_value}</td>
+      <td>${r.total_occurrences}</td><td>${r.pump_hits}</td>
+      <td style="color:${probColor};font-weight:600">%${r.pump_probability}</td>
+      <td>${r.avg_pump_pct}%</td></tr>`;
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
 async function loadMcap() {
   const data = await api('/api/mcap-scores');
   if (!data) return;
@@ -603,6 +643,9 @@ async function loadLeaderFollower() {
   loadCoins();
   loadSectors();
   loadPumps();
+  loadPumpScores();
+  if ($('#pump-score-tf')) $('#pump-score-tf').addEventListener('change', loadPumpScores);
+  if ($('#pump-score-dim')) $('#pump-score-dim').addEventListener('change', loadPumpScores);
   loadMcap();
   loadWhales();
   loadCorrelation();

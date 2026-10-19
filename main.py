@@ -17,7 +17,10 @@ from coin_classifier import classify_all_coins
 from market_regime import update_regime
 from backtester import run_full_backtest
 from advanced_analytics import run_all_advanced_analytics
-from telegram_bot import dp, bot, broadcast, build_daily_report
+from telegram_bot import (
+    dp, bot, broadcast, build_daily_report,
+    check_and_notify_signals, check_and_notify_pumps, check_and_notify_regime_change,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,6 +122,13 @@ def setup_scheduler():
                       seconds=DATA_UPDATE_INTERVALS["backtest"], id="backtest")
     scheduler.add_job(scheduled_advanced, "interval",
                       seconds=DATA_UPDATE_INTERVALS.get("advanced", 43200), id="advanced")
+
+    scheduler.add_job(check_and_notify_signals, "interval",
+                      seconds=DATA_UPDATE_INTERVALS["candles_1h"], id="signal_notify")
+    scheduler.add_job(check_and_notify_pumps, "interval",
+                      seconds=900, id="pump_notify")
+    scheduler.add_job(check_and_notify_regime_change, "interval",
+                      seconds=DATA_UPDATE_INTERVALS["regime"], id="regime_notify")
 
     scheduler.add_job(scheduled_daily_report, "cron",
                       hour=DAILY_REPORT_HOUR, minute=0, id="daily_report")

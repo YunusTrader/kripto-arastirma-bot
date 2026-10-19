@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kripto Araştırma Demo</title>
+<style>
+:root{
+  --bg:#0a0e14;--surface:#131920;--surface2:#1a2230;--border:#2a3545;
+  --fg:#d4dce8;--dim:#6b7d94;--accent:#4da6ff;--green:#2dd4a8;
+  --yellow:#f0b432;--red:#f05050;--purple:#a78bfa;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,sans-serif;font-size:13px;padding:0 16px;max-width:1200px;margin:0 auto;font-variant-numeric:tabular-nums}
+header{position:sticky;top:0;z-index:10;background:var(--bg);border-bottom:1px solid var(--border);padding:14px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+header h1{font-size:17px;font-weight:700}
+.sb{display:flex;gap:16px;font-size:11px;color:var(--dim)}
+.sb .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px}
+.tabs{display:flex;gap:2px;overflow-x:auto;padding:10px 0;border-bottom:1px solid var(--border)}
+.tab{background:none;border:none;color:var(--dim);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:12px;font-weight:500;white-space:nowrap}
+.tab:hover{color:var(--fg);background:var(--surface)}
+.tab.active{color:var(--accent);background:var(--surface2)}
+.tc{display:none;padding:16px 0}.tc.active{display:block}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;min-width:0}
+.card h3{margin:0 0 12px;font-size:12px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.kpi{text-align:center;padding:20px 12px}
+.kpi .v{font-size:26px;font-weight:700}
+.kpi .l{font-size:11px;color:var(--dim);margin-top:4px}
+.up{color:var(--green)}.dn{color:var(--red)}.wn{color:var(--yellow)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:6px 8px;color:var(--dim);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:7px 8px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+.pc{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;background:var(--surface2);margin-bottom:8px}
+.pc h4{margin:0;font-size:13px;font-weight:600}.pc p{margin:2px 0 0;font-size:11px;color:var(--dim)}
+.pc .pct{margin-left:auto;font-weight:700;font-size:15px}
+.pump-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px}
+.pm{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.pm .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pm .hd h4{margin:0;font-size:13px;font-weight:600}
+.pm .badge{font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px}
+.pm .tags{font-size:11px;color:var(--dim);margin-bottom:6px}
+.pill{display:inline-block;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:500;background:rgba(77,166,255,.15);color:var(--accent);margin:1px}
+.bar-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.bar-row:last-child{border-bottom:none}
+.bar-name{width:110px;font-size:12px;font-weight:500}
+.bar-track{flex:1;height:6px;border-radius:3px;background:var(--surface2);overflow:hidden}
+.bar-fill{height:100%;border-radius:3px}
+.bar-val{width:45px;text-align:right;font-weight:600;font-size:12px}
+canvas{display:block}
+@media(max-width:600px){.g2,.g3,.pump-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kripto Araştırma Paneli <span style="font-size:11px;color:var(--dim);font-weight:400">(Demo Veri)</span></h1>
+  <div class="sb"><span><span class="dot"></span>Aktif</span><span>142 coin</span><span>38.4K sinyal</span><span>287 pump</span></div>
+</header>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-t="overview">Genel Bakış</button>
+  <button class="tab" data-t="methods">Yöntem Skorları</button>
+  <button class="tab" data-t="coins">Öne Çıkan</button>
+  <button class="tab" data-t="sectors">Sektörler</button>
+  <button class="tab" data-t="pumps">Pump Anatomisi</button>
+  <button class="tab" data-t="pscores">Pump Olasılık</button>
+  <button class="tab" data-t="mcap">Market Cap</button>
+  <button class="tab" data-t="whales">Whale Takip</button>
+</div>
+
+<!-- OVERVIEW -->
+<div class="tc active" id="t-overview">
+  <div class="grid g3" style="margin-bottom:14px">
+    <div class="card kpi"><div class="v up">Yükseliş</div><div class="l">BTC Trend</div></div>
+    <div class="card kpi"><div class="v" style="color:var(--accent)">Açgözlülük</div><div class="l">Korku/Açgözlülük: 72</div></div>
+    <div class="card kpi"><div class="v wn">Azalıyor</div><div class="l">BTC Dominance: 51.2%</div></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Yöntem Başarı (7g)</h3><canvas id="c-methods" height="200"></canvas></div>
+    <div class="card"><h3>Pump Sektör Dağılımı</h3><canvas id="c-pie" height="200"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Sistem Durumu</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;text-align:center;font-size:12px">
+      <div><div style="font-size:20px;font-weight:700;color:var(--accent)">142</div>Coin</div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--green)">847K</div>Mum</div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--yellow)">38.4K</div>Sinyal</div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--purple)">1,240</div>Skor</div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--red)">287</div>Pump</div>
+      <div><div style="font-size:20px;font-weight:700;color:var(--accent)">94</div>Whale</div>
+    </div>
+  </div>
+</div>
+
+<!-- METHODS -->
+<div class="tc" id="t-methods">
+  <div class="grid g2">
+    <div class="card"><h3>Timeframe Başarı</h3><canvas id="c-tf" height="200"></canvas></div>
+    <div class="card"><h3>En İyi 10 Yöntem × Boyut</h3><div style="overflow-x:auto"><table>
+      <thead><tr><th>Yöntem</th><th>TF</th><th>Boyut</th><th>Win%</th><th>Getiri</th><th>#</th></tr></thead>
+      <tbody id="tb-methods"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- COINS -->
+<div class="tc" id="t-coins">
+  <div class="card"><h3>En Yüksek Skorlu Coinler</h3><div style="overflow-x:auto"><table>
+    <thead><tr><th>Coin</th><th>Sektör</th><th>MCap</th><th>Yöntem</th><th>Win%</th><th>#</th></tr></thead>
+    <tbody id="tb-coins"></tbody>
+  </table></div></div>
+</div>
+
+<!-- SECTORS -->
+<div class="tc" id="t-sectors">
+  <div class="grid g2">
+    <div class="card"><h3>Sektör Radar</h3><canvas id="c-radar" height="240"></canvas></div>
+    <div class="card"><h3>Sektör × Yöntem Win Rate</h3><div style="overflow-x:auto"><table>
+      <thead><tr><th>Sektör</th><th>MACD</th><th>EMA</th><th>BB</th><th>Vol</th><th>Multi</th><th>RSI Div</th><th>OBV</th><th>StochRSI</th></tr></thead>
+      <tbody id="tb-sectors"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- PUMPS -->
+<div class="tc" id="t-pumps">
+  <div class="grid g2" style="margin-bottom:14px">
+    <div class="card"><h3>Son Pump'lar</h3><div id="pump-list"></div></div>
+    <div class="card"><h3>Pump Öncesi Koşullar</h3><canvas id="c-precond" height="200"></canvas></div>
+  </div>
+  <h3 style="color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px">10 Pump Grafiği — Mum + Analiz Penceresi</h3>
+  <div class="pump-grid" id="pump-charts"></div>
+</div>
+
+<!-- PUMP SCORES -->
+<div class="tc" id="t-pscores">
+  <div class="card" style="margin-bottom:14px">
+    <h3>Pump Olasılık Skorları</h3>
+    <p style="color:var(--dim);font-size:12px;margin:0 0 14px">Koşul aktifken pump olma yüzdesi. Örn: BB Squeeze aktifken 1h'de top50 coinlerde pump olasılığı %16.9 — ama 200+ coinlerde %35.9</p>
+    <div id="cond-bars"></div>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Koşul × Timeframe</h3><canvas id="c-ps-tf" height="200"></canvas></div>
+    <div class="card"><h3>Koşul × Market Cap</h3><canvas id="c-ps-mc" height="200"></canvas></div>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Detay Tablosu</h3><div style="overflow-x:auto"><table>
+    <thead><tr><th>Koşul</th><th>TF</th><th>Boyut</th><th>Değer</th><th>Toplam</th><th>Hit</th><th>Olasılık</th><th>Ort%</th></tr></thead>
+    <tbody id="tb-ps"></tbody>
+  </table></div></div>
+</div>
+
+<!-- MCAP -->
+<div class="tc" id="t-mcap">
+  <div class="grid g2">
+    <div class="card"><h3>MCap Grubu Başarı</h3><canvas id="c-mcap" height="200"></canvas></div>
+    <div class="card"><h3>MCap Detay</h3><div style="overflow-x:auto"><table>
+      <thead><tr><th>Grup</th><th>MACD</th><th>EMA</th><th>BB</th><th>Vol</th><th>Multi</th><th>RSI Div</th><th>OBV</th><th>StochRSI</th></tr></thead>
+      <tbody id="tb-mcap"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- WHALES -->
+<div class="tc" id="t-whales">
+  <div class="grid g3" style="margin-bottom:14px">
+    <div class="card kpi"><div class="v" style="color:var(--accent)">94</div><div class="l">Toplam Whale Alert</div></div>
+    <div class="card kpi"><div class="v up">62.4%</div><div class="l">24s Pozitif Oran</div></div>
+    <div class="card kpi"><div class="v" style="color:var(--purple)">8.3x</div><div class="l">Ort. İşlem Büyüklüğü</div></div>
+  </div>
+  <div class="card"><h3>Son Whale Alertleri</h3><div style="overflow-x:auto"><table>
+    <thead><tr><th>Coin</th><th>Tarih</th><th>Oran</th><th>24s</th></tr></thead>
+    <tbody id="tb-whales"></tbody>
+  </table></div></div>
+</div>
+
+<script>
+(function(){
+// TABS
+document.getElementById('tabs').onclick=function(e){
+  if(!e.target.dataset.t)return;
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});
+  document.querySelectorAll('.tc').forEach(function(c){c.classList.remove('active')});
+  e.target.classList.add('active');
+  document.getElementById('t-'+e.target.dataset.t).classList.add('active');
+};
+
+var C={accent:'#4da6ff',green:'#2dd4a8',yellow:'#f0b432',red:'#f05050',purple:'#a78bfa',dim:'#6b7d94',surface2:'#1a2230'};
+
+// Horizontal bar chart
+function hBar(cv,labels,vals,colors){
+  var ctx=cv.getContext('2d'),W=500,H=labels.length*28+20;
+  cv.width=W;cv.height=H;cv.style.width='100%';cv.style.height=H+'px';
+  var lw=100,mx=Math.max.apply(null,vals),bh=20;
+  for(var i=0;i<labels.length;i++){
+    var y=10+i*28;
+    ctx.font='11px system-ui';ctx.fillStyle=C.dim;ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(labels[i],lw-6,y+bh/2);
+    var bw=((W-lw-50)/mx)*vals[i];
+    ctx.fillStyle=colors[i%colors.length];
+    ctx.fillRect(lw,y,bw,bh);
+    ctx.fillStyle='#d4dce8';ctx.textAlign='left';ctx.fillText('%'+vals[i],lw+bw+4,y+bh/2);
+  }
+}
+
+// Grouped bar chart
+function gBar(cv,groups,datasets){
+  var ctx=cv.getContext('2d'),W=500,H=200;
+  cv.width=W;cv.height=H;cv.style.width='100%';cv.style.height='200px';
+  var pad={t:24,b:30,l:36,r:10},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  var all=[];datasets.forEach(function(d){all=all.concat(d.data)});
+  var mx=Math.max.apply(null,all)*1.15;
+  var gw=pw/groups.length,bw=gw/(datasets.length+1),gap=2;
+  // Y grid
+  ctx.strokeStyle=C.surface2;ctx.lineWidth=1;
+  for(var r=0;r<=4;r++){var y=pad.t+ph*(1-r/4);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.font='10px system-ui';ctx.fillStyle=C.dim;ctx.textAlign='right';ctx.fillText('%'+Math.round(mx*r/4),pad.l-4,y+3);}
+  // Bars
+  for(var gi=0;gi<groups.length;gi++){
+    var gx=pad.l+gi*gw;
+    for(var di=0;di<datasets.length;di++){
+      var x=gx+(di+0.5)*bw+gap;var bh2=(datasets[di].data[gi]/mx)*ph;
+      ctx.fillStyle=datasets[di].color;
+      ctx.fillRect(x,pad.t+ph-bh2,bw-gap*2,bh2);
+    }
+    ctx.font='10px system-ui';ctx.fillStyle=C.dim;ctx.textAlign='center';ctx.fillText(groups[gi],gx+gw/2,H-pad.b+14);
+  }
+  // Legend
+  var lx=pad.l;
+  for(var k=0;k<datasets.length;k++){ctx.fillStyle=datasets[k].color;ctx.fillRect(lx,4,10,10);ctx.fillStyle=C.dim;ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(datasets[k].label,lx+14,13);lx+=ctx.measureText(datasets[k].label).width+28;}
+}
+
+// Pie chart
+function drawPie(cv,slices){
+  var ctx=cv.getContext('2d'),W=500,H=200;
+  cv.width=W;cv.height=H;cv.style.width='100%';cv.style.height='200px';
+  var cx=W*0.35,cy=H/2,r=Math.min(cx-10,cy-10)*0.85;
+  var total=0;slices.forEach(function(s){total+=s.v});
+  var angle=-Math.PI/2;
+  slices.forEach(function(s){var a=s.v/total*Math.PI*2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+a);ctx.fillStyle=s.c;ctx.fill();angle+=a;});
+  var ly=20;
+  slices.forEach(function(s){ctx.fillStyle=s.c;ctx.fillRect(W*0.68,ly,10,10);ctx.fillStyle=C.dim;ctx.font='11px system-ui';ctx.textAlign='left';ctx.fillText(s.l+' ('+s.v+')',W*0.68+14,ly+9);ly+=18;});
+}
+
+// Radar chart
+function drawRadar(cv,labels,datasets){
+  var ctx=cv.getContext('2d'),W=500,H=240;
+  cv.width=W;cv.height=H;cv.style.width='100%';cv.style.height='240px';
+  var cx=W*0.45,cy=H/2+10,r=Math.min(cx,cy)-30,n=labels.length,mx=75;
+  for(var ring=1;ring<=3;ring++){ctx.beginPath();var rr=r*ring/3;
+    for(var i=0;i<=n;i++){var a=-Math.PI/2+i*2*Math.PI/n;if(i===0)ctx.moveTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a));else ctx.lineTo(cx+rr*Math.cos(a),cy+rr*Math.sin(a));}
+    ctx.strokeStyle=C.surface2;ctx.stroke();}
+  labels.forEach(function(lb,i){var a=-Math.PI/2+i*2*Math.PI/n;var x=cx+(r+14)*Math.cos(a);var y2=cy+(r+14)*Math.sin(a);
+    ctx.font='10px system-ui';ctx.fillStyle=C.dim;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lb,x,y2);});
+  datasets.forEach(function(ds){ctx.beginPath();
+    ds.data.forEach(function(v,i){var a=-Math.PI/2+i*2*Math.PI/n;var d=r*v/mx;if(i===0)ctx.moveTo(cx+d*Math.cos(a),cy+d*Math.sin(a));else ctx.lineTo(cx+d*Math.cos(a),cy+d*Math.sin(a));});
+    ctx.closePath();ctx.fillStyle=ds.color+'33';ctx.fill();ctx.strokeStyle=ds.color;ctx.lineWidth=2;ctx.stroke();
+    ds.data.forEach(function(v,i){var a=-Math.PI/2+i*2*Math.PI/n;var d=r*v/mx;ctx.beginPath();ctx.arc(cx+d*Math.cos(a),cy+d*Math.sin(a),3,0,7);ctx.fillStyle=ds.color;ctx.fill();});
+  });
+  var lx=10;
+  datasets.forEach(function(ds){ctx.fillStyle=ds.color;ctx.fillRect(lx,4,10,10);ctx.fillStyle=C.dim;ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(ds.label,lx+14,13);lx+=60;});
+}
+
+// === DATA ===
+var PUMPS=[
+  {s:'PEPE',p:47,t:'1h',d:'2026-10-18 14:00',c:['bb_squeeze','volume_spike','accumulation']},
+  {s:'SOL',p:23,t:'4h',d:'2026-10-17 08:00',c:['macd','ema_20_50','volume_spike']},
+  {s:'RENDER',p:35,t:'1h',d:'2026-10-16 22:00',c:['bb_squeeze','accumulation','whale_activity']},
+  {s:'ARB',p:18,t:'4h',d:'2026-10-16 04:00',c:['ema_20_50','bb_breakout']},
+  {s:'WIF',p:62,t:'1h',d:'2026-10-15 16:00',c:['volume_spike','accumulation','multi_signal']},
+  {s:'FET',p:28,t:'1d',d:'2026-10-14',c:['bb_squeeze','macd']},
+  {s:'BONK',p:55,t:'1h',d:'2026-10-13 11:00',c:['volume_spike','whale_activity','multi_signal']},
+  {s:'AVAX',p:16,t:'4h',d:'2026-10-12 20:00',c:['ema_20_50','bb_squeeze']},
+  {s:'PENDLE',p:31,t:'1h',d:'2026-10-12 09:00',c:['accumulation','volume_spike','bb_squeeze']},
+  {s:'SUI',p:21,t:'4h',d:'2026-10-11 12:00',c:['macd','ema_50_200','volume_spike']}
+];
+
+// OVERVIEW — methods bar
+hBar(document.getElementById('c-methods'),
+  ['Multi Signal','BB Squeeze','MACD','Accumulation','EMA 20/50','Volume Spike','Whale'],
+  [67.8,61.3,58.2,55.4,54.7,52.1,49.8],
+  [C.green,C.green,C.accent,C.accent,C.accent,C.yellow,C.purple]);
+
+// OVERVIEW — pie
+drawPie(document.getElementById('c-pie'),[
+  {l:'Meme',v:42,c:C.red},{l:'L1',v:18,c:C.accent},{l:'AI',v:15,c:C.purple},
+  {l:'L2',v:10,c:C.green},{l:'DeFi',v:9,c:C.yellow},{l:'Gaming',v:6,c:C.dim}]);
+
+// METHODS — TF bar
+gBar(document.getElementById('c-tf'),['1h','4h','1d'],[
+  {label:'MACD',data:[56,59,62],color:C.accent},{label:'BB Squeeze',data:[63,58,55],color:C.green},{label:'Multi',data:[69,65,62],color:C.yellow}]);
+
+document.getElementById('tb-methods').innerHTML=[
+  ['multi_signal','1h','Meme','69.1','+4.2',284],['bb_squeeze','1h','overall','63.2','+3.1',512],
+  ['multi_signal','4h','AI','65.3','+5.8',98],['macd','1d','L1','62.0','+2.9',340],
+  ['volume_spike','1h','200+','60.8','+6.1',187],['ema_20_50','4h','top50','58.4','+2.1',420],
+  ['accumulation','1h','DeFi','57.2','+3.5',156],['bb_squeeze','4h','L2','56.8','+2.7',203],
+  ['whale_activity','1h','Meme','55.1','+7.3',72],['macd','4h','overall','54.7','+1.9',890]
+].map(function(r){return '<tr><td style="font-weight:600">'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td class="'+(+r[3]>=60?'up':+r[3]>=55?'wn':'')+'" style="font-weight:600">%'+r[3]+'</td><td class="up">'+r[4]+'%</td><td style="color:var(--dim)">'+r[5]+'</td></tr>'}).join('');
+
+// COINS
+document.getElementById('tb-coins').innerHTML=[
+  ['PEPE','Meme','200+','multi_signal','72.3',48],['WIF','Meme','101-200','multi_signal','68.4',34],
+  ['BONK','Meme','101-200','volume_spike','65.7',41],['SOL','L1','top50','ema_20_50','64.1',120],
+  ['RENDER','AI','51-100','bb_squeeze','63.8',85],['PENDLE','DeFi','101-200','accumulation','62.0',53],
+  ['FET','AI','51-100','macd','61.2',92],['DOGE','Meme','top50','multi_signal','60.2',156],
+  ['ARB','L2','51-100','volume_spike','59.7',67],['SUI','L1','top50','macd','58.9',110],
+  ['AVAX','L1','top50','bb_squeeze','57.3',145],['OP','L2','51-100','ema_20_50','57.9',78],
+  ['NEAR','L1','51-100','ema_20_50','56.4',98],['UNI','DeFi','top50','bb_squeeze','55.1',132],
+  ['LINK','Altyapi','top50','macd','54.8',140]
+].map(function(r){return '<tr><td style="font-weight:600">'+r[0]+'</td><td>'+r[1]+'</td><td>'+r[2]+'</td><td>'+r[3]+'</td><td class="'+(+r[4]>=65?'up':+r[4]>=58?'wn':'')+'" style="font-weight:600">%'+r[4]+'</td><td style="color:var(--dim)">'+r[5]+'</td></tr>'}).join('');
+
+// SECTORS
+var sWR={L1:[58,54,57,52,61,56,53,51],L2:[55,57,53,48,58,52,50,49],DeFi:[52,51,56,55,54,58,55,53],AI:[60,58,63,57,65,62,59,57],Meme:[49,45,48,61,67,44,42,46],Gaming:[47,44,46,50,52,45,43,41]};
+drawRadar(document.getElementById('c-radar'),['MACD','EMA','BB','Volume','Multi','RSI Div','OBV','StochRSI'],[
+  {label:'AI',data:sWR.AI,color:C.purple},{label:'L1',data:sWR.L1,color:C.accent},{label:'Meme',data:sWR.Meme,color:C.red}]);
+document.getElementById('tb-sectors').innerHTML=Object.keys(sWR).map(function(s){var v=sWR[s];
+  return '<tr><td style="font-weight:600">'+s+'</td>'+v.map(function(x){return '<td class="'+(x>=58?'up':x>=52?'wn':'dn')+'" style="font-weight:600">%'+x+'</td>'}).join('')+'</tr>'}).join('');
+
+// PUMP LIST
+document.getElementById('pump-list').innerHTML=PUMPS.slice(0,6).map(function(p){
+  return '<div class="pc"><div style="font-size:20px">'+(p.p>=30?'🚀':'📈')+'</div><div><h4>'+p.s+'</h4><p>'+p.d+' — '+p.c.join(', ')+'</p></div><div class="pct up">+'+p.p+'%</div></div>'}).join('');
+
+// PUMP PRECONDITIONS
+hBar(document.getElementById('c-precond'),
+  ['Hacim Spike','BB Sıkışma','Hacim Birikimi','MACD Cross','EMA Cross','Whale'],
+  [72,68,54,41,38,22],
+  [C.yellow,C.green,C.accent,C.accent,C.purple,C.red]);
+
+// 10 PUMP CANDLE CHARTS
+var sp=[0.000012,148,7.2,1.45,2.8,6.5,0.000028,34,4.1,1.9];
+var cg=document.getElementById('pump-charts');
+
+PUMPS.forEach(function(pump,idx){
+  var div=document.createElement('div');div.className='pm';
+  var bc=pump.p>=30?C.green:pump.p>=20?C.yellow:C.accent;
+  div.innerHTML='<div class="hd"><h4>'+pump.s+' <span style="color:var(--dim);font-weight:400;font-size:11px">'+pump.t+' · '+pump.d+'</span></h4><span class="badge" style="background:'+bc+'22;color:'+bc+'">+'+pump.p+'%</span></div>'+
+    '<div class="tags">Koşullar: '+pump.c.map(function(c2){return '<span class="pill">'+c2+'</span>'}).join(' ')+'</div>'+
+    '<canvas id="pcv'+idx+'" width="640" height="240"></canvas>';
+  cg.appendChild(div);
+
+  // Generate candle data
+  var candles=[];var pr=sp[idx];
+  for(var i=0;i<40;i++){
+    var vol=0.015,dr=(Math.random()-0.52)*vol;
+    if(i>=25&&i<28){dr=Math.random()*0.005;vol=0.005}
+    if(i===28)dr=pump.p/100*0.6;
+    if(i===29)dr=pump.p/100*0.4;
+    if(i>29&&i<34)dr=-(Math.random()*0.03);
+    var o=pr,cl=o*(1+dr),h=Math.max(o,cl)*(1+Math.random()*vol*0.5),l=Math.min(o,cl)*(1-Math.random()*vol*0.5);
+    candles.push({o:o,h:h,l:l,c:cl});pr=cl;
+  }
+
+  var cv2=document.getElementById('pcv'+idx);
+  cv2.style.width='100%';cv2.style.height='120px';
+  var ctx2=cv2.getContext('2d');
+  var W2=320,H2=120;
+  var prices=[];candles.forEach(function(c3){prices.push(c3.h,c3.l)});
+  var mn=Math.min.apply(null,prices),mx2=Math.max.apply(null,prices),rng=mx2-mn||1;
+  var pad2=4,cw=(W2-pad2*2)/candles.length;
+  function yy(p2){return pad2+(H2-pad2*2)*(1-(p2-mn)/rng)}
+
+  // Analysis window zone
+  ctx2.fillStyle=C.accent+'10';ctx2.fillRect(pad2+4*cw,0,24*cw,H2);
+  // Pump zone
+  ctx2.fillStyle=bc+'18';ctx2.fillRect(pad2+25*cw,0,6*cw,H2);
+  // Pump line
+  ctx2.strokeStyle=bc+'60';ctx2.setLineDash([3,3]);ctx2.beginPath();
+  var px=pad2+28.5*cw;ctx2.moveTo(px,0);ctx2.lineTo(px,H2);ctx2.stroke();ctx2.setLineDash([]);
+
+  candles.forEach(function(c4,j){
+    var x=pad2+j*cw+cw*0.5,up=c4.c>=c4.o,col=up?C.green:C.red;
+    ctx2.strokeStyle=col;ctx2.lineWidth=1;ctx2.beginPath();ctx2.moveTo(x,yy(c4.h));ctx2.lineTo(x,yy(c4.l));ctx2.stroke();
+    var bw2=Math.max(cw*0.6,2),t=yy(Math.max(c4.o,c4.c)),b=yy(Math.min(c4.o,c4.c)),bh3=Math.max(b-t,1);
+    if(up){ctx2.strokeStyle=col;ctx2.strokeRect(x-bw2/2,t,bw2,bh3)}
+    else{ctx2.fillStyle=col;ctx2.fillRect(x-bw2/2,t,bw2,bh3)}
+  });
+  ctx2.font='9px system-ui';ctx2.fillStyle=C.dim;ctx2.textAlign='center';ctx2.fillText('analiz penceresi',pad2+16*cw,H2-3);
+  ctx2.fillStyle=bc;ctx2.fillText('PUMP',px,10);
+});
+
+// PUMP SCORES
+var PS=[
+  {c:'multi_signal',t:'1h',d:'overall',v:'all',n:180,h:72,p:40.0,a:28.5},
+  {c:'volume_spike',t:'1h',d:'overall',v:'all',n:620,h:198,p:31.9,a:22.1},
+  {c:'whale_activity',t:'1h',d:'overall',v:'all',n:72,h:22,p:30.6,a:25.8},
+  {c:'bb_squeeze',t:'1h',d:'overall',v:'all',n:512,h:145,p:28.3,a:18.7},
+  {c:'accumulation',t:'1h',d:'overall',v:'all',n:340,h:88,p:25.9,a:16.4},
+  {c:'macd',t:'1h',d:'overall',v:'all',n:890,h:178,p:20.0,a:14.2},
+  {c:'volume_spike',t:'1h',d:'sector',v:'Meme',n:187,h:82,p:43.9,a:32.1},
+  {c:'volume_spike',t:'1h',d:'btc_trend',v:'yukselis',n:280,h:112,p:40.0,a:26.3},
+  {c:'bb_squeeze',t:'1h',d:'mcap_group',v:'200+',n:198,h:71,p:35.9,a:24.6},
+  {c:'accumulation',t:'1h',d:'sector',v:'AI',n:78,h:28,p:35.9,a:20.3},
+  {c:'multi_signal',t:'4h',d:'overall',v:'all',n:94,h:31,p:33.0,a:21.4},
+  {c:'bb_squeeze',t:'4h',d:'overall',v:'all',n:310,h:68,p:21.9,a:17.2},
+  {c:'ema_20_50',t:'1d',d:'overall',v:'all',n:420,h:92,p:21.9,a:22.0},
+  {c:'bb_squeeze',t:'1h',d:'mcap_group',v:'top50',n:142,h:24,p:16.9,a:12.3},
+  {c:'volume_spike',t:'1h',d:'sector',v:'L1',n:156,h:28,p:17.9,a:11.8},
+  {c:'rsi_divergence',t:'1h',d:'overall',v:'all',n:245,h:78,p:31.8,a:19.5},
+  {c:'obv_trend',t:'1h',d:'overall',v:'all',n:380,h:95,p:25.0,a:15.8},
+  {c:'stoch_rsi',t:'1h',d:'overall',v:'all',n:430,h:112,p:26.0,a:16.2},
+  {c:'rsi_divergence',t:'1h',d:'sector',v:'AI',n:62,h:24,p:38.7,a:23.1},
+  {c:'rsi_divergence',t:'4h',d:'overall',v:'all',n:120,h:32,p:26.7,a:18.9},
+  {c:'stoch_rsi',t:'1h',d:'mcap_group',v:'200+',n:145,h:52,p:35.9,a:22.4}
+];
+
+// Condition bars
+var ov=PS.filter(function(r){return r.d==='overall'&&r.t==='1h'}).sort(function(a,b){return b.p-a.p});
+document.getElementById('cond-bars').innerHTML=ov.map(function(r){
+  var col=r.p>=30?C.green:r.p>=20?C.yellow:C.dim;
+  return '<div class="bar-row"><div class="bar-name">'+r.c+'</div><div class="bar-track"><div class="bar-fill" style="width:'+r.p*2+'%;background:'+col+'"></div></div><div class="bar-val" style="color:'+col+'">%'+r.p+'</div></div>';
+}).join('');
+
+// PS charts
+gBar(document.getElementById('c-ps-tf'),['bb_sq','vol_sp','accum','multi','macd','ema'],[
+  {label:'1h',data:[28.3,31.9,25.9,40.0,20.0,18.2],color:C.accent},
+  {label:'4h',data:[21.9,24.1,19.5,33.0,17.8,16.4],color:C.green},
+  {label:'1d',data:[18.4,20.7,16.2,27.5,15.1,21.9],color:C.yellow}]);
+
+gBar(document.getElementById('c-ps-mc'),['bb_sq','vol_sp','accum','multi'],[
+  {label:'top50',data:[16.9,17.9,14.2,24.3],color:C.accent},
+  {label:'51-100',data:[24.1,28.3,22.5,35.1],color:C.green},
+  {label:'101-200',data:[30.2,36.4,28.7,42.8],color:C.yellow},
+  {label:'200+',data:[35.9,43.9,32.1,48.2],color:C.red}]);
+
+document.getElementById('tb-ps').innerHTML=PS.sort(function(a,b){return b.p-a.p}).map(function(r){
+  return '<tr><td style="font-weight:500">'+r.c+'</td><td>'+r.t+'</td><td>'+r.d+'</td><td>'+r.v+'</td><td style="color:var(--dim)">'+r.n+'</td><td style="color:var(--dim)">'+r.h+'</td><td class="'+(r.p>=30?'up':r.p>=20?'wn':'')+'" style="font-weight:600">%'+r.p+'</td><td>%'+r.a+'</td></tr>'}).join('');
+
+// MCAP
+gBar(document.getElementById('c-mcap'),['top50','51-100','101-200','200+'],[
+  {label:'MACD',data:[58,56,52,48],color:C.accent},
+  {label:'BB',data:[57,59,55,51],color:C.green},
+  {label:'Multi',data:[61,63,65,68],color:C.yellow}]);
+document.getElementById('tb-mcap').innerHTML=[['top50',[58,55,57,52,61,54,52,50]],['51-100',[56,54,59,55,63,57,54,53]],['101-200',[52,50,55,58,65,60,56,55]],['200+',[48,46,51,62,68,63,58,57]]].map(function(e){var g=e[0],v=e[1];
+  return '<tr><td style="font-weight:600">'+g+'</td>'+v.map(function(x){return '<td class="'+(x>=58?'up':x>=52?'wn':'dn')+'" style="font-weight:600">%'+x+'</td>'}).join('')+'</tr>'}).join('');
+
+// WHALES
+document.getElementById('tb-whales').innerHTML=[
+  ['PEPE','2026-10-18 13:20','12.4x','+8.2'],['SOL','2026-10-17 06:45','7.8x','+3.1'],
+  ['RENDER','2026-10-16 21:10','9.2x','+5.7'],['FET','2026-10-16 14:30','6.1x','-1.2'],
+  ['WIF','2026-10-15 15:00','15.3x','+12.4'],['BONK','2026-10-13 10:20','11.7x','+9.8'],
+  ['SUI','2026-10-12 08:40','5.8x','+2.1'],['ARB','2026-10-11 22:15','8.4x','-0.8']
+].map(function(r){return '<tr><td style="font-weight:600">'+r[0]+'</td><td style="color:var(--dim)">'+r[1]+'</td><td>'+r[2]+'</td><td class="'+(parseFloat(r[3])>0?'up':'dn')+'" style="font-weight:600">'+r[3]+'%</td></tr>'}).join('');
+
+})();
+</script>
+</body>
+</html>

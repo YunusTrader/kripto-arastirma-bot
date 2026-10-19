@@ -272,6 +272,30 @@ def init_db():
         )
     """)
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS pump_condition_scores (
+            condition TEXT NOT NULL,
+            timeframe TEXT NOT NULL,
+            dimension TEXT NOT NULL,
+            dimension_value TEXT NOT NULL,
+            total_occurrences INTEGER DEFAULT 0,
+            pump_hits INTEGER DEFAULT 0,
+            pump_probability REAL DEFAULT 0,
+            avg_pump_pct REAL DEFAULT 0,
+            last_updated TEXT,
+            PRIMARY KEY (condition, timeframe, dimension, dimension_value)
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS pump_notifications (
+            symbol TEXT NOT NULL,
+            pump_time TEXT NOT NULL,
+            notified_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (symbol, pump_time)
+        )
+    """)
+
     conn.execute("CREATE INDEX IF NOT EXISTS idx_candles_sym_tf ON candles(symbol, timeframe)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_method ON method_signals(method_name, timeframe)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_symbol ON method_signals(symbol)")

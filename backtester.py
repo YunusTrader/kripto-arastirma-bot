@@ -3,8 +3,7 @@ import time
 import logging
 from datetime import datetime
 from config import (
-    PUMP_THRESHOLD_PCT, PUMP_LOOKBACK_HOURS, SCORE_MIN_SAMPLES, TIMEFRAMES,
-    TIMEFRAME_MINUTES
+    SCORE_MIN_SAMPLES, TIMEFRAMES, TIMEFRAME_MINUTES
 )
 import database as db
 from indicators import detect_signals, get_indicator_snapshot
@@ -14,7 +13,8 @@ log = logging.getLogger(__name__)
 ALL_METHODS = [
     "macd", "ema_20_50", "ema_50_200",
     "bb_squeeze", "bb_breakout", "volume_spike",
-    "accumulation", "multi_signal", "whale_activity"
+    "accumulation", "multi_signal", "whale_activity",
+    "rsi_divergence", "obv_trend", "stoch_rsi"
 ]
 
 DIMENSIONS = [
@@ -24,21 +24,30 @@ DIMENSIONS = [
 ]
 
 
+PUMP_THRESHOLDS = {"1h": 10, "4h": 15, "1d": 20}
+PUMP_LOOKBACK_BARS = {"1h": 6, "4h": 6, "1d": 3}
+
+
 def find_pumps(candles, timeframe):
     if len(candles) < 30:
         return []
     pumps = []
-    tf_minutes = TIMEFRAME_MINUTES.get(timeframe, 60)
+    threshold = PUMP_THRESHOLDS.get(timeframe, 10)
+    lookback_size = PUMP_LOOKBACK_BARS.get(timeframe, 6)
+    cooldown = 0
 
-    for i in range(10, len(candles) - 1):
-        lookback = min(6, i)
+    for i in range(lookback_size + 1, len(candles) - 1):
+        if cooldown > 0:
+            cooldown -= 1
+            continue
+        lookback = min(lookback_size, i)
         base_price = min(c["close"] for c in candles[i - lookback:i])
         if base_price == 0:
             continue
         peak_price = candles[i]["high"]
         pct_change = ((peak_price - base_price) / base_price) * 100
 
-        if pct_change >= PUMP_THRESHOLD_PCT:
+        if pct_change >= threshold:
             pumps.append({
                 "index": i,
                 "pump_time": candles[i]["open_time"],
@@ -46,36 +55,29 @@ def find_pumps(candles, timeframe):
                 "price_before": base_price,
                 "price_peak": peak_price,
             })
+            cooldown = lookback_size
     return pumps
 
 
-def analyze_pump_preconditions(candles, pump_index, timeframe):
-    lookback_bars = {}
-    tf_minutes = TIMEFRAME_MINUTES.get(timeframe, 60)
-    for hours in PUMP_LOOKBACK_HOURS:
-        bars = max(1, int((hours * 60) / tf_minutes))
-        lookback_bars[f"{hours}h"] = bars
+INDICATOR_WINDOW = 60
+SIGNAL_WINDOW = 24
 
-    results = {}
-    for label, bars in lookback_bars.items():
-        if pump_index < 5:
-            continue
-        # Use enough candles for indicators (min 30) ending at pump_index
-        indicator_start = max(0, pump_index - max(bars, 60))
-        pre_candles = candles[indicator_start:pump_index]
-        if len(pre_candles) < 5:
-            continue
-        snapshot = get_indicator_snapshot(pre_candles)
-        # Signals use only the lookback window
-        signal_start = max(0, pump_index - bars)
-        signal_candles = candles[signal_start:pump_index]
-        signals = detect_signals(signal_candles) if len(signal_candles) >= 5 else {}
-        results[label] = {
-            "snapshot": snapshot,
-            "signals": list(signals.keys()),
-            "signal_count": len(signals),
-        }
-    return results
+
+def analyze_pump_preconditions(candles, pump_index, timeframe):
+    if pump_index < INDICATOR_WINDOW:
+        return {}
+    indicator_candles = candles[pump_index - INDICATOR_WINDOW:pump_index]
+    snapshot = get_indicator_snapshot(indicator_candles)
+
+    signal_start = max(0, pump_index - SIGNAL_WINDOW)
+    signal_candles = candles[signal_start:pump_index]
+    signals = detect_signals(signal_candles) if len(signal_candles) >= 60 else {}
+
+    return {
+        "snapshot": snapshot,
+        "signals": list(signals.keys()),
+        "signal_count": len(signals),
+    }
 
 
 def run_backtest_for_symbol(symbol, coin_info):
@@ -153,14 +155,8 @@ def run_backtest_for_symbol(symbol, coin_info):
         pumps = find_pumps(candles, timeframe)
         for pump in pumps:
             pre = analyze_pump_preconditions(candles, pump["index"], timeframe)
-            # Pick the best available lookback (longest with data)
-            best_pre = {}
-            for key in ["24h", "12h", "4h", "1h"]:
-                if key in pre and pre[key].get("snapshot"):
-                    best_pre = pre[key]
-                    break
-            snap = best_pre.get("snapshot", {})
-            sigs = best_pre.get("signals", [])
+            snap = pre.get("snapshot", {})
+            sigs = pre.get("signals", [])
             pump_record = {
                 "symbol": symbol,
                 "timeframe": timeframe,
@@ -172,7 +168,7 @@ def run_backtest_for_symbol(symbol, coin_info):
                 "dominance_trend": coin_info.get("dominance_trend", "sabit"),
                 "mcap_group": coin_info.get("mcap_group", "200+"),
                 "sector": coin_info.get("sector", "Diger"),
-                "pre_rsi": snap.get("rsi"),
+                "pre_rsi": None,
                 "pre_macd_signal": snap.get("macd_signal"),
                 "pre_ema_cross": snap.get("ema_cross"),
                 "pre_bb_squeeze": 1 if snap.get("bb_squeeze") else 0,
@@ -228,7 +224,102 @@ def run_full_backtest():
     conn.commit()
     log.info(f"Backtest complete: {total_signals} signals from {batch_count} coins")
     calculate_all_scores()
+    try:
+        calculate_pump_condition_scores()
+    except Exception as e:
+        log.error(f"Pump condition score error: {e}")
     return total_signals
+
+
+CONDITIONS = ["bb_squeeze", "bb_breakout", "volume_spike", "accumulation",
+              "macd", "ema_20_50", "ema_50_200", "whale_activity", "multi_signal",
+              "rsi_divergence", "obv_trend", "stoch_rsi"]
+PUMP_FORWARD_BARS = {"1h": 24, "4h": 6, "1d": 3}
+PUMP_DIMENSIONS = ["mcap_group", "sector", "btc_trend", "overall"]
+
+
+def calculate_pump_condition_scores():
+    log.info("Calculating pump condition scores (Option B)...")
+    conn = db.get_conn()
+
+    for timeframe in TIMEFRAMES:
+        threshold = PUMP_THRESHOLDS.get(timeframe, 10)
+        forward_bars = PUMP_FORWARD_BARS.get(timeframe, 6)
+
+        coins = db.get_all_coins()
+        regime = db.get_latest_regime()
+        regime_dict = dict(regime) if regime else {}
+
+        condition_stats = {}
+
+        for coin in coins:
+            if coin["symbol"] == "BTCUSDT":
+                continue
+            candles_raw = db.get_candles(coin["symbol"], timeframe, 1000)
+            if not candles_raw or len(candles_raw) < INDICATOR_WINDOW + forward_bars + 10:
+                continue
+            candles = [dict(c) for c in reversed(candles_raw)]
+            coin_info = dict(coin)
+            coin_info.update(regime_dict)
+
+            for i in range(INDICATOR_WINDOW, len(candles) - forward_bars):
+                window = candles[i - INDICATOR_WINDOW:i + 1]
+                signals = detect_signals(window)
+                if not signals:
+                    continue
+
+                has_pump = False
+                max_pct = 0
+                base_price = candles[i]["close"]
+                if base_price == 0:
+                    continue
+                for j in range(1, forward_bars + 1):
+                    peak = candles[i + j]["high"]
+                    pct = ((peak - base_price) / base_price) * 100
+                    if pct > max_pct:
+                        max_pct = pct
+                    if pct >= threshold:
+                        has_pump = True
+
+                dim_values = {
+                    "mcap_group": coin_info.get("mcap_group", "200+"),
+                    "sector": coin_info.get("sector", "Diger"),
+                    "btc_trend": coin_info.get("btc_trend", "yatay"),
+                    "overall": "all",
+                }
+
+                for cond_name in signals:
+                    if cond_name not in CONDITIONS:
+                        continue
+                    for dim in PUMP_DIMENSIONS:
+                        key = (cond_name, timeframe, dim, dim_values[dim])
+                        if key not in condition_stats:
+                            condition_stats[key] = {"total": 0, "hits": 0, "pct_sum": 0}
+                        condition_stats[key]["total"] += 1
+                        if has_pump:
+                            condition_stats[key]["hits"] += 1
+                            condition_stats[key]["pct_sum"] += max_pct
+
+        now = datetime.utcnow().isoformat()
+        for (cond, tf, dim, dim_val), stats in condition_stats.items():
+            if stats["total"] < SCORE_MIN_SAMPLES:
+                continue
+            prob = round(stats["hits"] / stats["total"] * 100, 1)
+            avg_pct = round(stats["pct_sum"] / stats["hits"], 2) if stats["hits"] > 0 else 0
+            conn.execute(
+                "INSERT INTO pump_condition_scores "
+                "(condition, timeframe, dimension, dimension_value, "
+                "total_occurrences, pump_hits, pump_probability, avg_pump_pct, last_updated) "
+                "VALUES (?,?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(condition, timeframe, dimension, dimension_value) DO UPDATE SET "
+                "total_occurrences=excluded.total_occurrences, pump_hits=excluded.pump_hits, "
+                "pump_probability=excluded.pump_probability, avg_pump_pct=excluded.avg_pump_pct, "
+                "last_updated=excluded.last_updated",
+                [cond, tf, dim, dim_val, stats["total"], stats["hits"], prob, avg_pct, now]
+            )
+
+        conn.commit()
+    log.info("Pump condition scores complete")
 
 
 def calculate_all_scores():
