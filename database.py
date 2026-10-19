@@ -1,10 +1,12 @@
 import os
 import logging
+import threading
 from config import TURSO_DB_URL, TURSO_AUTH_TOKEN
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "crypto_research.db")
 
 _conn = None
+_sync_lock = threading.Lock()
 
 
 class DictCursor:
@@ -51,16 +53,11 @@ class DictConnection:
 
     def commit(self):
         self._conn.commit()
-        if hasattr(self._conn, 'sync'):
-            try:
-                self._conn.sync()
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"Turso sync on commit failed: {e}")
 
     def sync(self):
         if hasattr(self._conn, 'sync'):
-            self._conn.sync()
+            with _sync_lock:
+                self._conn.sync()
 
 
 log = logging.getLogger(__name__)
