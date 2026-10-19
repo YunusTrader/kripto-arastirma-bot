@@ -70,8 +70,6 @@ def api_pump_stats():
         stats[label] = round(row["cnt"] / total * 100, 1) if total else 0
 
     for col, label, condition in [
-        ("pre_rsi", "RSI Oversold", "pre_rsi < 35"),
-        ("pre_rsi", "RSI Nötr", "pre_rsi BETWEEN 35 AND 65"),
         ("pre_volume_ratio", "Hacim Spike (2x+)", "pre_volume_ratio >= 2"),
         ("pre_volume_ratio", "Hacim Spike (3x+)", "pre_volume_ratio >= 3"),
     ]:
@@ -91,7 +89,7 @@ def api_pump_stats():
 
 @dashboard_bp.route("/api/sectors")
 def api_sectors():
-    methods = ["rsi", "macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
+    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
     sectors = ["L1", "L2", "DeFi", "AI", "Meme", "Gaming"]
     result = {}
     for sector in sectors:
@@ -107,7 +105,7 @@ def api_sectors():
 
 @dashboard_bp.route("/api/mcap-scores")
 def api_mcap_scores():
-    methods = ["rsi", "macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
+    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
     groups = ["top50", "51-100", "101-200", "200+"]
     result = {}
     for group in groups:
@@ -123,7 +121,7 @@ def api_mcap_scores():
 
 @dashboard_bp.route("/api/timeframe-scores")
 def api_tf_scores():
-    methods = ["rsi", "macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
+    methods = ["macd", "ema_20_50", "bb_squeeze", "volume_spike", "multi_signal"]
     timeframes = ["1h", "4h", "1d"]
     result = {}
     for tf in timeframes:

@@ -1,6 +1,6 @@
 import logging
 from config import (
-    RSI_OVERSOLD, RSI_OVERBOUGHT, BB_SQUEEZE_THRESHOLD,
+    BB_SQUEEZE_THRESHOLD,
     VOLUME_SPIKE_MULTIPLIER, ACCUMULATION_VOL_MIN,
     ACCUMULATION_VOL_MAX, ACCUMULATION_PRICE_MAX_CHANGE
 )
@@ -98,15 +98,6 @@ def detect_signals(candles):
 
     signals = {}
 
-    # RSI
-    rsi_vals = rsi(closes)
-    if rsi_vals:
-        current_rsi = rsi_vals[-1]
-        if current_rsi <= RSI_OVERSOLD:
-            signals["rsi"] = {"type": "oversold", "value": round(current_rsi, 1)}
-        elif current_rsi >= RSI_OVERBOUGHT:
-            signals["rsi"] = {"type": "overbought", "value": round(current_rsi, 1)}
-
     # MACD crossover
     macd_line, signal_line, hist = macd(closes)
     if len(hist) >= 2:
@@ -195,7 +186,7 @@ def detect_signals(candles):
 
     # Multi-timeframe alignment count
     bullish_count = sum(1 for s in signals.values() if s["type"] in
-                        ("oversold", "bullish_cross", "golden_cross", "squeeze", "spike", "accumulation", "large_trades"))
+                        ("bullish_cross", "golden_cross", "squeeze", "spike", "accumulation", "large_trades"))
     if bullish_count >= 3:
         signals["multi_signal"] = {"type": "strong_alignment", "value": bullish_count}
 
@@ -209,10 +200,6 @@ def get_indicator_snapshot(candles):
     volumes = [c["quote_volume"] for c in candles]
 
     snapshot = {}
-
-    rsi_vals = rsi(closes)
-    if rsi_vals:
-        snapshot["rsi"] = round(rsi_vals[-1], 1)
 
     _, _, hist = macd(closes)
     if hist:

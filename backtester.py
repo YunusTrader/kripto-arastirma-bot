@@ -12,7 +12,7 @@ from indicators import detect_signals, get_indicator_snapshot
 log = logging.getLogger(__name__)
 
 ALL_METHODS = [
-    "rsi", "macd", "ema_20_50", "ema_50_200",
+    "macd", "ema_20_50", "ema_50_200",
     "bb_squeeze", "bb_breakout", "volume_spike",
     "accumulation", "multi_signal", "whale_activity"
 ]

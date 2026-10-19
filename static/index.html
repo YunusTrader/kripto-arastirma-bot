@@ -296,7 +296,7 @@ async function loadTfChart() {
   const data = await api('/api/timeframe-scores');
   if (!data) return;
   const tfs = Object.keys(data);
-  const methods = ['rsi', 'ema_20_50', 'bb_squeeze', 'multi_signal'];
+  const methods = ['ema_20_50', 'bb_squeeze', 'multi_signal'];
   const colors = [C.accent + '99', C.green + '99', C.yellow + '99', C.red + '99'];
   new Chart($('#chart-tf'), {
     type: 'bar',
@@ -337,7 +337,7 @@ async function loadCoins() {
 async function loadSectors() {
   const data = await api('/api/sectors');
   if (!data) return;
-  const methods = ['rsi', 'macd', 'ema_20_50', 'bb_squeeze', 'volume_spike', 'multi_signal'];
+  const methods = ['macd', 'ema_20_50', 'bb_squeeze', 'volume_spike', 'multi_signal'];
   const sectors = Object.keys(data);
 
   let html = '<div style="overflow-x:auto"><table class="dt" style="min-width:550px"><thead><tr><th></th>';
@@ -397,7 +397,7 @@ async function loadPumps() {
       if (p.pre_bb_squeeze) pre.push('BB sıkışma');
       if (p.pre_accumulation) pre.push('Hacim birikimi');
       if (p.pre_volume_ratio >= 2) pre.push('Hacim ' + p.pre_volume_ratio.toFixed(1) + 'x');
-      if (p.pre_rsi != null) pre.push('RSI ' + p.pre_rsi.toFixed(0));
+      // RSI removed from analysis
       html += `<div class="pump-card">
         <div class="pump-icon">${icon}</div>
         <div class="pump-info"><h4>${p.symbol}</h4><p>${date} — ${pre.join(', ') || 'Veri yok'}</p></div>

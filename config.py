@@ -12,7 +12,7 @@ BINANCE_BASE = "https://api.binance.com"
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 FEAR_GREED_URL = "https://api.alternative.me/fng/"
 
-TIMEFRAMES = ["1h", "4h", "1d", "1w"]
+TIMEFRAMES = ["1h", "4h", "1d"]
 TIMEFRAME_MINUTES = {"1h": 60, "4h": 240, "1d": 1440, "1w": 10080}
 KLINE_LIMITS = {"1h": 500, "4h": 500, "1d": 365, "1w": 52}
 

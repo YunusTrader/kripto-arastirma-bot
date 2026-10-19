@@ -14,7 +14,10 @@ dp = Dispatcher()
 
 users = set()
 if MY_CHAT_ID:
-    users.add(MY_CHAT_ID)
+    users.add(int(MY_CHAT_ID))
+    log.info(f"MY_CHAT_ID configured: {MY_CHAT_ID}")
+else:
+    log.warning("MY_CHAT_ID not set! Bot won't send broadcast messages until user sends /start")
 
 
 async def safe_send(chat_id, text, parse_mode="Markdown"):
@@ -32,12 +35,12 @@ async def safe_send(chat_id, text, parse_mode="Markdown"):
             if parts:
                 await bot.send_message(chat_id, "\n".join(parts), parse_mode=parse_mode)
     except Exception as e:
-        log.warning(f"Send error (trying plain text): {e}")
+        log.warning(f"Send error to {chat_id} (trying plain text): {e}")
         try:
             clean = text.replace("*", "").replace("`", "").replace("_", "")
             await bot.send_message(chat_id, clean[:4000])
-        except Exception:
-            pass
+        except Exception as e2:
+            log.error(f"Plain text send also failed to {chat_id}: {e2}")
 
 
 async def broadcast(text, parse_mode="Markdown"):
@@ -60,7 +63,7 @@ async def cmd_start(m: types.Message):
         "/top - En yuksek skorlu coinler\n"
         "/top50 - Top 50 mcap analizi\n"
         "/sektor DeFi - Sektor raporu\n"
-        "/karsilastir RSI MACD - Yontem karsilastir\n"
+        "/karsilastir MACD EMA - Yontem karsilastir\n"
         "/whale - Whale/buyuk islem tespitleri\n"
         "/korelasyon - Korelasyon kirilmalari\n"
         "/lider - Sektor lider-takipci analizi\n"
@@ -188,8 +191,6 @@ async def cmd_coin(m: types.Message):
         snapshot = get_indicator_snapshot(candles)
 
         text += f"\n*{tf} gostergeler:*\n"
-        if snapshot.get("rsi"):
-            text += f"  RSI: `{snapshot['rsi']}`\n"
         if snapshot.get("ema_cross"):
             text += f"  EMA 20/50: `{snapshot['ema_cross']}`\n"
         if snapshot.get("bb_squeeze") is not None:
@@ -230,12 +231,12 @@ async def cmd_coin(m: types.Message):
 async def cmd_method(m: types.Message):
     parts = m.text.strip().split()
     if len(parts) < 2:
-        await m.answer("Kullanim: /yontem EMA\n\nYontemler: rsi, macd, ema\\_20\\_50, ema\\_50\\_200, bb\\_squeeze, bb\\_breakout, volume\\_spike, accumulation, multi\\_signal")
+        await m.answer("Kullanim: /yontem EMA\n\nYontemler: macd, ema\\_20\\_50, ema\\_50\\_200, bb\\_squeeze, bb\\_breakout, volume\\_spike, accumulation, multi\\_signal")
         return
 
     method = parts[1].lower()
     method_map = {
-        "ema": "ema_20_50", "rsi": "rsi", "macd": "macd",
+        "ema": "ema_20_50", "macd": "macd",
         "bb": "bb_squeeze", "bollinger": "bb_squeeze",
         "hacim": "volume_spike", "volume": "volume_spike",
         "birikim": "accumulation", "accumulation": "accumulation",
@@ -354,11 +355,11 @@ async def cmd_sector(m: types.Message):
 async def cmd_compare(m: types.Message):
     parts = m.text.strip().split()
     if len(parts) < 3:
-        await m.answer("Kullanim: /karsilastir RSI MACD")
+        await m.answer("Kullanim: /karsilastir MACD EMA")
         return
 
     method_map = {
-        "ema": "ema_20_50", "rsi": "rsi", "macd": "macd",
+        "ema": "ema_20_50", "macd": "macd",
         "bb": "bb_squeeze", "bollinger": "bb_squeeze",
         "hacim": "volume_spike", "volume": "volume_spike",
         "birikim": "accumulation", "multi": "multi_signal",
