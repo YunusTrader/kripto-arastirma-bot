@@ -7,6 +7,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "crypto_research.db")
 
 _conn = None
 _sync_lock = threading.Lock()
+_conn_lock = threading.Lock()
 
 
 class DictCursor:
@@ -41,17 +42,18 @@ class DictConnection:
     def __init__(self, conn):
         self._conn = conn
 
-    def _execute_with_retry(self, fn):
-        try:
-            return fn()
-        except (ValueError, Exception) as e:
-            err_str = str(e).lower()
-            if "stream" in err_str and ("not found" in err_str or "already in use" in err_str):
-                log.warning(f"Turso stream error, reconnecting: {e}")
-                _reconnect()
-                self._conn = _conn._conn
+    def _run_with_lock(self, fn):
+        with _conn_lock:
+            try:
                 return fn()
-            raise
+            except (ValueError, Exception) as e:
+                err_str = str(e).lower()
+                if "stream" in err_str and ("not found" in err_str or "already in use" in err_str):
+                    log.warning(f"Turso stream error, reconnecting: {e}")
+                    _reconnect()
+                    self._conn = _conn._conn
+                    return fn()
+                raise
 
     def execute(self, sql, params=None):
         def fn():
@@ -60,12 +62,12 @@ class DictConnection:
             else:
                 cur = self._conn.execute(sql)
             return DictCursor(cur)
-        return self._execute_with_retry(fn)
+        return self._run_with_lock(fn)
 
     def executemany(self, sql, params):
         def fn():
             return self._conn.executemany(sql, [tuple(p) for p in params])
-        return self._execute_with_retry(fn)
+        return self._run_with_lock(fn)
 
     def commit(self):
         self._conn.commit()
