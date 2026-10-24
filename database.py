@@ -41,15 +41,31 @@ class DictConnection:
     def __init__(self, conn):
         self._conn = conn
 
+    def _execute_with_retry(self, fn):
+        try:
+            return fn()
+        except (ValueError, Exception) as e:
+            err_str = str(e).lower()
+            if "stream" in err_str and ("not found" in err_str or "already in use" in err_str):
+                log.warning(f"Turso stream error, reconnecting: {e}")
+                _reconnect()
+                self._conn = _conn._conn
+                return fn()
+            raise
+
     def execute(self, sql, params=None):
-        if params is not None:
-            cur = self._conn.execute(sql, tuple(params))
-        else:
-            cur = self._conn.execute(sql)
-        return DictCursor(cur)
+        def fn():
+            if params is not None:
+                cur = self._conn.execute(sql, tuple(params))
+            else:
+                cur = self._conn.execute(sql)
+            return DictCursor(cur)
+        return self._execute_with_retry(fn)
 
     def executemany(self, sql, params):
-        return self._conn.executemany(sql, [tuple(p) for p in params])
+        def fn():
+            return self._conn.executemany(sql, [tuple(p) for p in params])
+        return self._execute_with_retry(fn)
 
     def commit(self):
         self._conn.commit()
@@ -63,11 +79,7 @@ class DictConnection:
 log = logging.getLogger(__name__)
 
 
-def get_conn():
-    global _conn
-    if _conn is not None:
-        return _conn
-
+def _create_connection():
     if TURSO_DB_URL and TURSO_AUTH_TOKEN:
         import libsql_experimental as libsql
         raw = libsql.connect(
@@ -90,9 +102,24 @@ def get_conn():
         import sqlite3
         raw = sqlite3.connect(DB_PATH)
 
-    _conn = DictConnection(raw)
-    _conn.execute("PRAGMA journal_mode=WAL")
-    _conn.execute("PRAGMA foreign_keys=ON")
+    conn = DictConnection(raw)
+    conn._conn.execute("PRAGMA journal_mode=WAL")
+    conn._conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def _reconnect():
+    global _conn
+    log.info("Reconnecting to database...")
+    _conn = _create_connection()
+    log.info("Database reconnected")
+
+
+def get_conn():
+    global _conn
+    if _conn is not None:
+        return _conn
+    _conn = _create_connection()
     return _conn
 
 
