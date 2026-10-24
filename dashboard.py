@@ -63,6 +63,13 @@ def api_pump_stats():
     for col, label in [
         ("pre_bb_squeeze", "BB Sıkışma"),
         ("pre_accumulation", "Hacim Birikimi"),
+        ("pre_rsi_divergence", "RSI Divergence"),
+        ("pre_obv_trend", "OBV Trend"),
+        ("pre_stoch_rsi", "Stoch RSI"),
+        ("pre_macd_cross", "MACD Kesişim"),
+        ("pre_ema_cross_signal", "EMA Kesişim"),
+        ("pre_volume_spike", "Volume Spike"),
+        ("pre_multi_signal", "Çoklu Sinyal"),
     ]:
         row = conn.execute(
             f"SELECT COUNT(*) as cnt FROM pumps WHERE {col} = 1"

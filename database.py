@@ -249,6 +249,13 @@ def init_db():
             pre_bb_squeeze INTEGER,
             pre_volume_ratio REAL,
             pre_accumulation INTEGER,
+            pre_rsi_divergence INTEGER DEFAULT 0,
+            pre_obv_trend INTEGER DEFAULT 0,
+            pre_stoch_rsi INTEGER DEFAULT 0,
+            pre_macd_cross INTEGER DEFAULT 0,
+            pre_ema_cross_signal INTEGER DEFAULT 0,
+            pre_volume_spike INTEGER DEFAULT 0,
+            pre_multi_signal INTEGER DEFAULT 0,
             indicators_json TEXT
         )
     """)
@@ -326,6 +333,13 @@ def init_db():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_method ON method_signals(method_name, timeframe)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_signals_symbol ON method_signals(symbol)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_pumps_symbol ON pumps(symbol)")
+
+    for col in ["pre_rsi_divergence", "pre_obv_trend", "pre_stoch_rsi",
+                 "pre_macd_cross", "pre_ema_cross_signal", "pre_volume_spike", "pre_multi_signal"]:
+        try:
+            conn.execute(f"ALTER TABLE pumps ADD COLUMN {col} INTEGER DEFAULT 0")
+        except Exception:
+            pass
 
     conn.commit()
     sync_db()

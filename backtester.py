@@ -174,6 +174,13 @@ def run_backtest_for_symbol(symbol, coin_info):
                 "pre_bb_squeeze": 1 if snap.get("bb_squeeze") else 0,
                 "pre_volume_ratio": snap.get("volume_ratio"),
                 "pre_accumulation": 1 if "accumulation" in sigs else 0,
+                "pre_rsi_divergence": 1 if "rsi_divergence" in sigs else 0,
+                "pre_obv_trend": 1 if "obv_trend" in sigs else 0,
+                "pre_stoch_rsi": 1 if "stoch_rsi" in sigs else 0,
+                "pre_macd_cross": 1 if "macd" in sigs else 0,
+                "pre_ema_cross_signal": 1 if "ema_20_50" in sigs else 0,
+                "pre_volume_spike": 1 if "volume_spike" in sigs else 0,
+                "pre_multi_signal": 1 if "multi_signal" in sigs else 0,
                 "indicators_json": json.dumps(pre),
             }
             cols = ", ".join(pump_record.keys())
